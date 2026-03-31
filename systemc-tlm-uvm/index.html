@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>SystemC TLM-2.0 ↔ UVM Integration</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e0e0e0; padding: 24px; }
+  h1 { text-align: center; font-size: 1.6rem; margin-bottom: 8px; color: #fff; }
+  .subtitle { text-align: center; color: #888; font-size: 0.9rem; margin-bottom: 24px; }
+
+  .tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .tab { padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+         background: #1a1d27; border: 1px solid #2a2d3a; transition: all 0.2s; }
+  .tab:hover { border-color: #555; }
+  .tab.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+  .diagram { display: none; max-width: 1000px; margin: 0 auto; }
+  .diagram.active { display: block; }
+
+  svg { width: 100%; height: auto; }
+
+  .legend { display: flex; justify-content: center; gap: 24px; margin-top: 20px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #aaa; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+  .info-box { max-width: 1000px; margin: 24px auto 0; background: #1a1d27; border-radius: 12px; padding: 20px; border: 1px solid #2a2d3a; }
+  .info-box h3 { color: #93c5fd; margin-bottom: 12px; font-size: 1rem; }
+  .info-box table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .info-box th { text-align: left; padding: 8px 12px; color: #93c5fd; border-bottom: 1px solid #2a2d3a; }
+  .info-box td { padding: 8px 12px; border-bottom: 1px solid #1e2130; }
+  .info-box code { background: #252836; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; color: #a5d6ff; }
+
+  @keyframes flowRight { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
+  @keyframes flowLeft { from { stroke-dashoffset: -20; } to { stroke-dashoffset: 0; } }
+  .flow-right { animation: flowRight 0.8s linear infinite; }
+  .flow-left { animation: flowLeft 0.8s linear infinite; }
+</style>
+</head>
+<body>
+
+<h1>SystemC TLM-2.0 ↔ UVM Integration Architecture</h1>
+<p class="subtitle">VCS TLI (Transaction-Level Interface) 기반 SC↔SV 연결</p>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('overview')">Overview</div>
+  <div class="tab" onclick="showTab('axi')">AXI (SV→SC)</div>
+  <div class="tab" onclick="showTab('apb')">APB (SV→SC)</div>
+  <div class="tab" onclick="showTab('combined')">Combined</div>
+  <div class="tab" onclick="showTab('sc2sv')">SC→SV</div>
+</div>
+
+<!-- OVERVIEW -->
+<div class="diagram active" id="d-overview">
+<svg viewBox="0 0 960 520">
+  <defs>
+    <marker id="arr-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#60a5fa"/>
+    </marker>
+    <marker id="arr-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4ade80"/>
+    </marker>
+    <marker id="arr-orange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#fb923c"/>
+    </marker>
+    <marker id="arr-purple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#c084fc"/>
+    </marker>
+  </defs>
+
+  <!-- Background regions -->
+  <rect x="40" y="60" width="380" height="440" rx="16" fill="#1a1d27" stroke="#2a2d3a"/>
+  <rect x="540" y="60" width="380" height="440" rx="16" fill="#1a1d27" stroke="#2a2d3a"/>
+
+  <!-- Region labels -->
+  <text x="230" y="45" text-anchor="middle" fill="#93c5fd" font-size="15" font-weight="700">SystemVerilog / UVM</text>
+  <text x="730" y="45" text-anchor="middle" fill="#86efac" font-size="15" font-weight="700">SystemC / TLM-2.0</text>
+
+  <!-- SV→SC: AXI -->
+  <rect x="70" y="90" width="200" height="70" rx="10" fill="#1e3a5f" stroke="#60a5fa" stroke-width="1.5"/>
+  <text x="170" y="118" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">AXI Initiator</text>
+  <text x="170" y="140" text-anchor="middle" fill="#7aa2cc" font-size="10">burst write/read (1~8 beats)</text>
+
+  <rect x="690" y="90" width="200" height="70" rx="10" fill="#1a3d2a" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="790" y="118" text-anchor="middle" fill="#86efac" font-size="13" font-weight="600">AXI Memory Target</text>
+  <text x="790" y="140" text-anchor="middle" fill="#6dbe8a" font-size="10">4KB, burst latency model</text>
+
+  <!-- Arrow AXI -->
+  <line x1="270" y1="125" x2="690" y2="125" stroke="#60a5fa" stroke-width="2" stroke-dasharray="6,4" class="flow-right" marker-end="url(#arr-blue)"/>
+  <text x="480" y="115" text-anchor="middle" fill="#60a5fa" font-size="10" font-weight="600">b_transport</text>
+  <rect x="440" y="120" width="80" height="22" rx="4" fill="#2563eb" opacity="0.3"/>
+  <text x="480" y="136" text-anchor="middle" fill="#93c5fd" font-size="9">axi_port</text>
+
+  <!-- SV→SC: APB -->
+  <rect x="70" y="200" width="200" height="70" rx="10" fill="#1e3a5f" stroke="#60a5fa" stroke-width="1.5"/>
+  <text x="170" y="228" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">APB Initiator</text>
+  <text x="170" y="250" text-anchor="middle" fill="#7aa2cc" font-size="10">single 32-bit register R/W</text>
+
+  <rect x="690" y="200" width="200" height="70" rx="10" fill="#1a3d2a" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="790" y="228" text-anchor="middle" fill="#86efac" font-size="13" font-weight="600">APB Register Bank</text>
+  <text x="790" y="250" text-anchor="middle" fill="#6dbe8a" font-size="10">8 regs (CTRL,STATUS,DATA...)</text>
+
+  <!-- Arrow APB -->
+  <line x1="270" y1="235" x2="690" y2="235" stroke="#fb923c" stroke-width="2" stroke-dasharray="6,4" class="flow-right" marker-end="url(#arr-orange)"/>
+  <text x="480" y="225" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">b_transport</text>
+  <rect x="440" y="230" width="80" height="22" rx="4" fill="#ea580c" opacity="0.3"/>
+  <text x="480" y="246" text-anchor="middle" fill="#fdba74" font-size="9">apb_port</text>
+
+  <!-- SC→SV -->
+  <rect x="70" y="350" width="200" height="70" rx="10" fill="#1e3a5f" stroke="#c084fc" stroke-width="1.5"/>
+  <text x="170" y="378" text-anchor="middle" fill="#d8b4fe" font-size="13" font-weight="600">SV Memory Target</text>
+  <text x="170" y="400" text-anchor="middle" fill="#a78bcc" font-size="10">assoc. array, b_transport impl</text>
+
+  <rect x="690" y="350" width="200" height="70" rx="10" fill="#2d1a3d" stroke="#c084fc" stroke-width="1.5"/>
+  <text x="790" y="378" text-anchor="middle" fill="#d8b4fe" font-size="13" font-weight="600">SC Initiator</text>
+  <text x="790" y="400" text-anchor="middle" fill="#a78bcc" font-size="10">SC_THREAD, write/read</text>
+
+  <!-- Arrow SC→SV (reverse) -->
+  <line x1="690" y1="385" x2="270" y2="385" stroke="#c084fc" stroke-width="2" stroke-dasharray="6,4" class="flow-left" marker-end="url(#arr-purple)"/>
+  <text x="480" y="375" text-anchor="middle" fill="#c084fc" font-size="10" font-weight="600">b_transport</text>
+  <rect x="440" y="380" width="80" height="22" rx="4" fill="#7c3aed" opacity="0.3"/>
+  <text x="480" y="396" text-anchor="middle" fill="#d8b4fe" font-size="9">sc2sv_port</text>
+
+  <!-- TLI Bridge zone -->
+  <rect x="430" y="60" width="100" height="440" rx="0" fill="#2563eb" opacity="0.05"/>
+  <text x="480" y="490" text-anchor="middle" fill="#555" font-size="11" font-weight="600">VCS TLI Bridge</text>
+</svg>
+</div>
+
+<!-- AXI -->
+<div class="diagram" id="d-axi">
+<svg viewBox="0 0 960 400">
+  <defs>
+    <marker id="a2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#60a5fa"/></marker>
+    <marker id="a2g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4ade80"/></marker>
+  </defs>
+
+  <!-- UVM Side -->
+  <rect x="40" y="30" width="340" height="340" rx="14" fill="#1a1d27" stroke="#2a2d3a"/>
+  <text x="210" y="20" text-anchor="middle" fill="#93c5fd" font-size="14" font-weight="700">UVM Testbench (SV)</text>
+
+  <rect x="70" y="55" width="280" height="50" rx="8" fill="#172554" stroke="#1e40af"/>
+  <text x="210" y="78" text-anchor="middle" fill="#bfdbfe" font-size="12" font-weight="600">axi_test</text>
+  <text x="210" y="95" text-anchor="middle" fill="#6b8cba" font-size="10">run_phase: objection + #5000</text>
+
+  <rect x="70" y="120" width="280" height="50" rx="8" fill="#172554" stroke="#1e40af"/>
+  <text x="210" y="143" text-anchor="middle" fill="#bfdbfe" font-size="12" font-weight="600">axi_tb_env</text>
+  <text x="210" y="160" text-anchor="middle" fill="#6b8cba" font-size="10">connect: axi_port → TLI</text>
+
+  <rect x="70" y="190" width="280" height="120" rx="8" fill="#1e3a5f" stroke="#60a5fa" stroke-width="2"/>
+  <text x="210" y="215" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="700">axi_initiator</text>
+  <text x="210" y="240" text-anchor="middle" fill="#7aa2cc" font-size="10">axi_write(addr, data[])</text>
+  <text x="210" y="258" text-anchor="middle" fill="#7aa2cc" font-size="10">axi_read(addr, len) → data[]</text>
+  <rect x="90" y="270" width="240" height="28" rx="6" fill="#1e40af" opacity="0.4"/>
+  <text x="210" y="289" text-anchor="middle" fill="#93c5fd" font-size="10">b_init_socket (initiator)</text>
+
+  <!-- TLI -->
+  <rect x="420" y="120" width="120" height="160" rx="12" fill="#1e293b" stroke="#475569"/>
+  <text x="480" y="165" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="700">VCS TLI</text>
+  <text x="480" y="185" text-anchor="middle" fill="#64748b" font-size="9">named port:</text>
+  <text x="480" y="200" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600">"axi_port"</text>
+  <text x="480" y="225" text-anchor="middle" fill="#64748b" font-size="9">GP pack/unpack</text>
+  <text x="480" y="245" text-anchor="middle" fill="#64748b" font-size="9">SV ↔ SC bridge</text>
+
+  <!-- SC Side -->
+  <rect x="580" y="30" width="340" height="340" rx="14" fill="#1a1d27" stroke="#2a2d3a"/>
+  <text x="750" y="20" text-anchor="middle" fill="#86efac" font-size="14" font-weight="700">SystemC Module (C++)</text>
+
+  <rect x="610" y="55" width="280" height="50" rx="8" fill="#14332a" stroke="#166534"/>
+  <text x="750" y="78" text-anchor="middle" fill="#bbf7d0" font-size="12" font-weight="600">sc_top</text>
+  <text x="750" y="95" text-anchor="middle" fill="#6dbe8a" font-size="10">uvm_tlm2_bind_sc_target()</text>
+
+  <rect x="610" y="130" width="280" height="220" rx="8" fill="#1a3d2a" stroke="#4ade80" stroke-width="2"/>
+  <text x="750" y="158" text-anchor="middle" fill="#86efac" font-size="13" font-weight="700">axi_target (4KB mem)</text>
+  <rect x="630" y="168" width="240" height="28" rx="6" fill="#166534" opacity="0.4"/>
+  <text x="750" y="187" text-anchor="middle" fill="#86efac" font-size="10">target_socket (target)</text>
+
+  <text x="750" y="220" text-anchor="middle" fill="#6dbe8a" font-size="10" font-weight="600">b_transport:</text>
+  <text x="750" y="240" text-anchor="middle" fill="#6dbe8a" font-size="10">WRITE → memcpy to mem[]</text>
+  <text x="750" y="258" text-anchor="middle" fill="#6dbe8a" font-size="10">READ  → memcpy from mem[]</text>
+  <text x="750" y="280" text-anchor="middle" fill="#6dbe8a" font-size="10">Latency: 1ns/beat(W), 2ns/beat(R)</text>
+
+  <!-- Test flow -->
+  <rect x="620" y="295" width="260" height="45" rx="6" fill="#0f2418" stroke="#166534"/>
+  <text x="750" y="312" text-anchor="middle" fill="#4ade80" font-size="9">Test: 1-beat(4B) → 4-beat(16B) → 8-beat(32B)</text>
+  <text x="750" y="330" text-anchor="middle" fill="#4ade80" font-size="9">Each: WRITE → READ → verify → PASS/FAIL</text>
+
+  <!-- Arrows -->
+  <line x1="350" y1="195" x2="420" y2="195" stroke="#60a5fa" stroke-width="2" stroke-dasharray="5,3" class="flow-right" marker-end="url(#a2)"/>
+  <line x1="540" y1="195" x2="610" y2="195" stroke="#4ade80" stroke-width="2" stroke-dasharray="5,3" class="flow-right" marker-end="url(#a2g)"/>
+
+  <text x="385" y="215" text-anchor="middle" fill="#60a5fa" font-size="9">REQ →</text>
+  <text x="575" y="215" text-anchor="middle" fill="#4ade80" font-size="9">→ REQ</text>
+  <text x="385" y="235" text-anchor="middle" fill="#60a5fa" font-size="9">← RESP</text>
+  <text x="575" y="235" text-anchor="middle" fill="#4ade80" font-size="9">RESP ←</text>
+</svg>
+</div>
+
+<!-- APB -->
+<div class="diagram" id="d-apb">
+<svg viewBox="0 0 960 400">
+  <defs>
+    <marker id="a3" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#fb923c"/></marker>
+    <marker id="a3g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4ade80"/></marker>
+  </defs>
+
+  <!-- UVM Side -->
+  <rect x="40" y="30" width="340" height="340" rx="14" fill="#1a1d27" stroke="#2a2d3a"/>
+  <text x="210" y="20" text-anchor="middle" fill="#fdba74" font-size="14" font-weight="700">UVM Testbench (SV)</text>
+
+  <rect x="70" y="55" width="280" height="50" rx="8" fill="#431407" stroke="#9a3412"/>
+  <text x="210" y="78" text-anchor="middle" fill="#fed7aa" font-size="12" font-weight="600">apb_test → apb_tb_env</text>
+  <text x="210" y="95" text-anchor="middle" fill="#c2783a" font-size="10">connect: apb_port → TLI</text>
+
+  <rect x="70" y="125" width="280" height="110" rx="8" fill="#3d2008" stroke="#fb923c" stroke-width="2"/>
+  <text x="210" y="150" text-anchor="middle" fill="#fdba74" font-size="13" font-weight="700">apb_initiator</text>
+  <text x="210" y="175" text-anchor="middle" fill="#c2783a" font-size="10">apb_write(addr, 32bit_val)</text>
+  <text x="210" y="193" text-anchor="middle" fill="#c2783a" font-size="10">apb_read(addr) → 32bit_val</text>
+  <rect x="90" y="205" width="240" height="22" rx="5" fill="#9a3412" opacity="0.3"/>
+  <text x="210" y="220" text-anchor="middle" fill="#fdba74" font-size="10">b_init_socket</text>
+
+  <!-- TLI -->
+  <rect x="420" y="100" width="120" height="100" rx="12" fill="#1e293b" stroke="#475569"/>
+  <text x="480" y="135" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="700">VCS TLI</text>
+  <text x="480" y="155" text-anchor="middle" fill="#fb923c" font-size="11" font-weight="600">"apb_port"</text>
+  <text x="480" y="175" text-anchor="middle" fill="#64748b" font-size="9">GP pack/unpack</text>
+
+  <!-- SC Side -->
+  <rect x="580" y="30" width="340" height="340" rx="14" fill="#1a1d27" stroke="#2a2d3a"/>
+  <text x="750" y="20" text-anchor="middle" fill="#86efac" font-size="14" font-weight="700">SystemC Module (C++)</text>
+
+  <rect x="610" y="55" width="280" height="40" rx="8" fill="#14332a" stroke="#166534"/>
+  <text x="750" y="80" text-anchor="middle" fill="#bbf7d0" font-size="12" font-weight="600">sc_top → uvm_tlm2_bind_sc_target()</text>
+
+  <rect x="610" y="110" width="280" height="120" rx="8" fill="#1a3d2a" stroke="#4ade80" stroke-width="2"/>
+  <text x="750" y="138" text-anchor="middle" fill="#86efac" font-size="13" font-weight="700">apb_target (register bank)</text>
+  <text x="750" y="160" text-anchor="middle" fill="#6dbe8a" font-size="10">4-byte aligned, single-beat only</text>
+  <text x="750" y="178" text-anchor="middle" fill="#6dbe8a" font-size="10">Latency: 2ns (setup + access)</text>
+  <text x="750" y="198" text-anchor="middle" fill="#6dbe8a" font-size="10">VERSION reg: read-only protection</text>
+
+  <!-- Register map -->
+  <rect x="620" y="250" width="260" height="110" rx="8" fill="#0f2418" stroke="#166534"/>
+  <text x="750" y="270" text-anchor="middle" fill="#86efac" font-size="11" font-weight="600">Register Map</text>
+  <text x="660" y="290" fill="#6dbe8a" font-size="9">0x00 CTRL      0x04 STATUS</text>
+  <text x="660" y="305" fill="#6dbe8a" font-size="9">0x08 DATA0     0x0C DATA1</text>
+  <text x="660" y="320" fill="#6dbe8a" font-size="9">0x10 IRQ_EN    0x14 IRQ_STATUS</text>
+  <text x="660" y="335" fill="#6dbe8a" font-size="9">0x18 CONFIG    0x1C VERSION (RO)</text>
+
+  <!-- Arrows -->
+  <line x1="350" y1="155" x2="420" y2="155" stroke="#fb923c" stroke-width="2" stroke-dasharray="5,3" class="flow-right" marker-end="url(#a3)"/>
+  <line x1="540" y1="155" x2="610" y2="155" stroke="#4ade80" stroke-width="2" stroke-dasharray="5,3" class="flow-right" marker-end="url(#a3g)"/>
+</svg>
+</div>
+
+<!-- COMBINED -->
+<div class="diagram" id="d-combined">
+<svg viewBox="0 0 960 450">
+  <defs>
+    <marker id="a4b" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#60a5fa"/></marker>
+    <marker id="a4o" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#fb923c"/></marker>
+    <marker id="a4g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4ade80"/></marker>
+  </defs>
+
+  <rect x="40" y="30" width="340" height="390" rx="14" fill="#1a1d27" stroke="#2a2d3a"/>
+  <text x="210" y="20" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">UVM Testbench (SV)</text>
+
+  <rect x="70" y="50" width="280" height="40" rx="8" fill="#172554" stroke="#1e40af"/>
+  <text x="210" y="75" text-anchor="middle" fill="#bfdbfe" font-size="12" font-weight="600">combined_test + combined_tb_env</text>
+
+  <rect x="70" y="110" width="280" height="80" rx="8" fill="#1e3a5f" stroke="#60a5fa" stroke-width="2"/>
+  <text x="210" y="135" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="700">axi_initiator (axi0)</text>
+  <text x="210" y="155" text-anchor="middle" fill="#7aa2cc" font-size="10">burst write/read, 1~8 beats</text>
+  <text x="210" y="178" text-anchor="middle" fill="#93c5fd" font-size="10">b_init_socket</text>
+
+  <rect x="70" y="220" width="280" height="80" rx="8" fill="#3d2008" stroke="#fb923c" stroke-width="2"/>
+  <text x="210" y="245" text-anchor="middle" fill="#fdba74" font-size="13" font-weight="700">apb_initiator (apb0)</text>
+  <text x="210" y="265" text-anchor="middle" fill="#c2783a" font-size="10">single 32-bit register R/W</text>
+  <text x="210" y="288" text-anchor="middle" fill="#fdba74" font-size="10">b_init_socket</text>
+
+  <!-- Report -->
+  <rect x="70" y="330" width="280" height="75" rx="8" fill="#172554" stroke="#1e40af"/>
+  <text x="210" y="353" text-anchor="middle" fill="#bfdbfe" font-size="11" font-weight="600">report_phase</text>
+  <text x="210" y="373" text-anchor="middle" fill="#7aa2cc" font-size="10">AXI: 4 PASS + APB: 8 PASS</text>
+  <text x="210" y="393" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="700">COMBINED TEST PASSED</text>
+
+  <!-- TLI -->
+  <rect x="420" y="90" width="120" height="230" rx="12" fill="#1e293b" stroke="#475569"/>
+  <text x="480" y="130" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="700">VCS TLI</text>
+  <text x="480" y="170" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="600">"axi_port"</text>
+  <text x="480" y="260" text-anchor="middle" fill="#fb923c" font-size="11" font-weight="600">"apb_port"</text>
+  <text x="480" y="300" text-anchor="middle" fill="#64748b" font-size="9">2 named ports</text>
+
+  <!-- SC Side -->
+  <rect x="580" y="30" width="340" height="390" rx="14" fill="#1a1d27" stroke="#2a2d3a"/>
+  <text x="750" y="20" text-anchor="middle" fill="#86efac" font-size="14" font-weight="700">SystemC (C++)</text>
+
+  <rect x="610" y="50" width="280" height="40" rx="8" fill="#14332a" stroke="#166534"/>
+  <text x="750" y="75" text-anchor="middle" fill="#bbf7d0" font-size="12" font-weight="600">sc_top (both targets)</text>
+
+  <rect x="610" y="110" width="280" height="80" rx="8" fill="#1a3d2a" stroke="#4ade80" stroke-width="2"/>
+  <text x="750" y="138" text-anchor="middle" fill="#86efac" font-size="13" font-weight="700">axi_target (axi_mem)</text>
+  <text x="750" y="158" text-anchor="middle" fill="#6dbe8a" font-size="10">4KB memory, burst latency</text>
+  <text x="750" y="178" text-anchor="middle" fill="#86efac" font-size="10">target_socket</text>
+
+  <rect x="610" y="220" width="280" height="80" rx="8" fill="#1a3d2a" stroke="#4ade80" stroke-width="2"/>
+  <text x="750" y="248" text-anchor="middle" fill="#86efac" font-size="13" font-weight="700">apb_target (apb_regs)</text>
+  <text x="750" y="268" text-anchor="middle" fill="#6dbe8a" font-size="10">8 registers, 2ns latency</text>
+  <text x="750" y="288" text-anchor="middle" fill="#86efac" font-size="10">target_socket</text>
+
+  <!-- Arrows -->
+  <line x1="350" y1="155" x2="420" y2="155" stroke="#60a5fa" stroke-width="2" stroke-dasharray="5,3" class="flow-right" marker-end="url(#a4b)"/>
+  <line x1="540" y1="155" x2="610" y2="155" stroke="#4ade80" stroke-width="2" stroke-dasharray="5,3" class="flow-right" marker-end="url(#a4g)"/>
+  <line x1="350" y1="265" x2="420" y2="265" stroke="#fb923c" stroke-width="2" stroke-dasharray="5,3" class="flow-right" marker-end="url(#a4o)"/>
+  <line x1="540" y1="265" x2="610" y2="265" stroke="#4ade80" stroke-width="2" stroke-dasharray="5,3" class="flow-right" marker-end="url(#a4g)"/>
+</svg>
+</div>
+
+<!-- SC→SV -->
+<div class="diagram" id="d-sc2sv">
+<svg viewBox="0 0 960 400">
+  <defs>
+    <marker id="a5" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#c084fc"/></marker>
+    <marker id="a5r" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto"><polygon points="8 0, 0 3, 8 6" fill="#c084fc"/></marker>
+  </defs>
+
+  <!-- SC Side (RIGHT = initiator this time) -->
+  <rect x="580" y="30" width="340" height="340" rx="14" fill="#1a1d27" stroke="#2a2d3a"/>
+  <text x="750" y="20" text-anchor="middle" fill="#d8b4fe" font-size="14" font-weight="700">SystemC (C++) — INITIATOR</text>
+
+  <rect x="610" y="55" width="280" height="40" rx="8" fill="#2d1a3d" stroke="#7c3aed"/>
+  <text x="750" y="80" text-anchor="middle" fill="#d8b4fe" font-size="12" font-weight="600">sc_top → uvm_tlm2_bind_sc_initiator()</text>
+
+  <rect x="610" y="115" width="280" height="160" rx="8" fill="#2d1a3d" stroke="#c084fc" stroke-width="2"/>
+  <text x="750" y="143" text-anchor="middle" fill="#d8b4fe" font-size="13" font-weight="700">sc_initiator</text>
+  <text x="750" y="165" text-anchor="middle" fill="#a78bcc" font-size="10">SC_THREAD: run()</text>
+  <text x="750" y="185" text-anchor="middle" fill="#a78bcc" font-size="10">do_write(addr, data, len)</text>
+  <text x="750" y="203" text-anchor="middle" fill="#a78bcc" font-size="10">do_read(addr, data, len)</text>
+  <rect x="630" y="215" width="240" height="22" rx="5" fill="#7c3aed" opacity="0.3"/>
+  <text x="750" y="231" text-anchor="middle" fill="#d8b4fe" font-size="10">simple_initiator_socket</text>
+
+  <rect x="620" y="295" width="260" height="60" rx="6" fill="#1f0f30" stroke="#7c3aed"/>
+  <text x="750" y="315" text-anchor="middle" fill="#c084fc" font-size="9" font-weight="600">Test Sequence (SC_THREAD):</text>
+  <text x="750" y="332" text-anchor="middle" fill="#a78bcc" font-size="9">WRITE 0x0000 → READ 0x0000 → WRITE 0x0010</text>
+  <text x="750" y="347" text-anchor="middle" fill="#a78bcc" font-size="9">→ READ 0x0000 → READ 0x0010 (5 transactions)</text>
+
+  <!-- TLI -->
+  <rect x="420" y="100" width="120" height="120" rx="12" fill="#1e293b" stroke="#475569"/>
+  <text x="480" y="140" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="700">VCS TLI</text>
+  <text x="480" y="165" text-anchor="middle" fill="#c084fc" font-size="11" font-weight="600">"sc2sv_port"</text>
+  <text x="480" y="190" text-anchor="middle" fill="#64748b" font-size="9">reverse direction</text>
+
+  <!-- SV Side (LEFT = target this time) -->
+  <rect x="40" y="30" width="340" height="340" rx="14" fill="#1a1d27" stroke="#2a2d3a"/>
+  <text x="210" y="20" text-anchor="middle" fill="#d8b4fe" font-size="14" font-weight="700">UVM Testbench (SV) — TARGET</text>
+
+  <rect x="70" y="55" width="280" height="40" rx="8" fill="#2d1a3d" stroke="#7c3aed"/>
+  <text x="210" y="80" text-anchor="middle" fill="#d8b4fe" font-size="12" font-weight="600">sc2sv_tb_env → UVM_TLM_B_INITIATOR</text>
+
+  <rect x="70" y="115" width="280" height="140" rx="8" fill="#2d1a3d" stroke="#c084fc" stroke-width="2"/>
+  <text x="210" y="143" text-anchor="middle" fill="#d8b4fe" font-size="13" font-weight="700">sv_target</text>
+  <rect x="90" y="153" width="240" height="22" rx="5" fill="#7c3aed" opacity="0.3"/>
+  <text x="210" y="169" text-anchor="middle" fill="#d8b4fe" font-size="10">b_target_socket</text>
+
+  <text x="210" y="195" text-anchor="middle" fill="#a78bcc" font-size="10" font-weight="600">b_transport task (SV impl):</text>
+  <text x="210" y="215" text-anchor="middle" fill="#a78bcc" font-size="10">WRITE → store to assoc. array</text>
+  <text x="210" y="233" text-anchor="middle" fill="#a78bcc" font-size="10">READ  → fetch from assoc. array</text>
+
+  <rect x="80" y="275" width="260" height="75" rx="6" fill="#1f0f30" stroke="#7c3aed"/>
+  <text x="210" y="295" text-anchor="middle" fill="#c084fc" font-size="10" font-weight="600">Key Difference</text>
+  <text x="210" y="315" text-anchor="middle" fill="#a78bcc" font-size="9">SC registers as INITIATOR:</text>
+  <text x="210" y="330" text-anchor="middle" fill="#d8b4fe" font-size="9">uvm_tlm2_bind_sc_initiator(socket, UVM_TLM_B, "port")</text>
+  <text x="210" y="345" text-anchor="middle" fill="#a78bcc" font-size="9">SV connects with UVM_TLM_B_INITIATOR flag</text>
+
+  <!-- Arrows (reverse direction: SC → SV) -->
+  <line x1="610" y1="170" x2="540" y2="170" stroke="#c084fc" stroke-width="2" stroke-dasharray="5,3" class="flow-left" marker-end="url(#a5r)"/>
+  <line x1="420" y1="170" x2="350" y2="170" stroke="#c084fc" stroke-width="2" stroke-dasharray="5,3" class="flow-left" marker-end="url(#a5r)"/>
+
+  <text x="575" y="160" text-anchor="middle" fill="#c084fc" font-size="9">REQ ←</text>
+  <text x="385" y="160" text-anchor="middle" fill="#c084fc" font-size="9">← REQ</text>
+  <text x="575" y="195" text-anchor="middle" fill="#c084fc" font-size="9">→ RESP</text>
+  <text x="385" y="195" text-anchor="middle" fill="#c084fc" font-size="9">RESP →</text>
+</svg>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div>AXI (SV→SC)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fb923c"></div>APB (SV→SC)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#c084fc"></div>SC→SV (reverse)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4ade80"></div>SystemC target</div>
+</div>
+
+<div class="info-box">
+  <h3>Binding API Reference</h3>
+  <table>
+    <tr><th>Direction</th><th>SC Side</th><th>SV Side</th><th>Named Port</th></tr>
+    <tr>
+      <td>SV → SC</td>
+      <td><code>uvm_tlm2_bind_sc_target(socket, UVM_TLM_B, "port")</code></td>
+      <td><code>uvm_tlm2_sv_bind#(GP)::connect(init_socket, UVM_TLM_B_TARGET, "port")</code></td>
+      <td><code>axi_port</code> / <code>apb_port</code></td>
+    </tr>
+    <tr>
+      <td>SC → SV</td>
+      <td><code>uvm_tlm2_bind_sc_initiator(socket, UVM_TLM_B, "port")</code></td>
+      <td><code>uvm_tlm2_sv_bind#(GP)::connect(target_socket, UVM_TLM_B_INITIATOR, "port")</code></td>
+      <td><code>sc2sv_port</code></td>
+    </tr>
+  </table>
+</div>
+
+<script>
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.diagram').forEach(d => d.classList.remove('active'));
+  document.getElementById('d-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>
