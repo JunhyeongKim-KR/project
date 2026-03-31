@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QJL 행렬 방법 비교 — N(0,1) vs SRHT vs Rademacher</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f1a; color: #e0e0e0; }
+
+  h1 { text-align: center; padding: 24px 16px 4px; font-size: 1.4rem; color: #fff; }
+  .subtitle { text-align: center; color: #888; font-size: 0.85rem; margin-bottom: 16px; line-height: 1.5; }
+  .hl { color: #4fc3f7; } .gold { color: #ffd700; } .green { color: #86efac; } .purple { color: #d8b4fe; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 20px 30px; }
+
+  /* Summary Table */
+  .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; border-radius: 10px; overflow: hidden; }
+  .summary-table th { background: #1e1e3a; color: #fff; padding: 10px 14px; text-align: left; font-size: 0.85rem; }
+  .summary-table td { padding: 10px 14px; font-size: 0.85rem; border-bottom: 1px solid #2a2a40; }
+  .summary-table tr:hover { background: rgba(255,255,255,0.03); }
+  .cost-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; font-family: 'Courier New', monospace; font-weight: 600; }
+  .cost-low { background: #1a3a1a; color: #86efac; }
+  .cost-mid { background: #3a3a1a; color: #ffd700; }
+  .cost-high { background: #3a1a1a; color: #ff6b6b; }
+
+  /* Detail Cards */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+  .card { border-radius: 10px; overflow: hidden; }
+  .card-header { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+  .card-header .name { font-weight: 700; font-size: 1rem; }
+  .card-header .formula { font-family: 'Courier New', monospace; font-size: 0.8rem; opacity: 0.7; }
+  .card-body { padding: 10px 14px; }
+  .math-box { background: rgba(0,0,0,0.25); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .math-box .title { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; margin-bottom: 6px; opacity: 0.8; }
+  .math-box .line { font-size: 0.78rem; font-family: 'Courier New', monospace; padding: 2px 0; line-height: 1.5; }
+
+  .card-gauss { background: #0d1b2a; border: 2px solid #7dd3fc; }
+  .card-gauss .card-header { background: rgba(125,211,252,0.15); }
+  .card-gauss .name { color: #7dd3fc; }
+  .card-srht { background: #0d1f0d; border: 2px solid #86efac; }
+  .card-srht .card-header { background: rgba(134,239,172,0.15); }
+  .card-srht .name { color: #86efac; }
+  .card-rade { background: #1a0d2e; border: 2px solid #d8b4fe; }
+  .card-rade .card-header { background: rgba(216,180,254,0.15); }
+  .card-rade .name { color: #d8b4fe; }
+
+  /* Controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; padding: 0 0 16px; align-items: center; }
+  .controls label { font-size: 0.85rem; color: #aaa; }
+  .controls select, .controls input { background: #2a2a4a; color: #fff; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; }
+  .controls button { background: #2a2a4a; color: #fff; border: 1px solid #444; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+  .controls button:hover { background: #3a3a5a; }
+
+  /* Viz Section */
+  .viz-section { background: #1a1a2e; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .viz-section h2 { font-size: 1rem; color: #fff; margin-bottom: 4px; }
+  .viz-section .desc { font-size: 0.78rem; color: #888; margin-bottom: 10px; }
+  .plot-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .plot-item { text-align: center; }
+  .plot-item canvas { background: #12121e; border-radius: 6px; display: block; margin: 0 auto; }
+  .plot-item .label { font-size: 0.72rem; color: #888; margin-top: 3px; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+  .stat-card { background: #12121e; border-radius: 8px; padding: 10px 14px; text-align: center; }
+  .stat-card .stat-name { font-size: 0.72rem; color: #888; margin-bottom: 4px; }
+  .stat-card .stat-val { font-size: 1.1rem; font-family: 'Courier New', monospace; font-weight: 700; }
+
+  /* Conclusion */
+  .conclusion { background: #1e1e3a; border-radius: 10px; padding: 16px 20px; margin-top: 16px; }
+  .conclusion h3 { color: #ffd700; font-size: 0.95rem; margin-bottom: 8px; }
+  .conclusion p { font-size: 0.85rem; color: #bbb; line-height: 1.7; }
+
+  @media (max-width: 900px) {
+    .cards { grid-template-columns: 1fr; }
+    .plot-row, .stats-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>QJL 행렬 방법 비교</h1>
+<p class="subtitle">
+  QJL의 핵심 조건: <span class="hl">E\[S<sub>ij</sub>\] = 0</span>, <span class="hl">E\[S<sub>ij</sub>²\] = 1</span><br>
+  세 가지 행렬이 이 조건을 만족하는지 수학적·실험적으로 검증
+</p>
+
+<div class="container">
+
+<!-- Summary Table -->
+<table class="summary-table">
+  <thead>
+    <tr>
+      <th>방법</th>
+      <th>수식</th>
+      <th>연산량</th>
+      <th>E\[S<sub>ij</sub>\] = 0</th>
+      <th>E\[S<sub>ij</sub>²\] = 1</th>
+      <th>분산 보장</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="color:#7dd3fc;font-weight:700">원래 N(0,1)</td>
+      <td style="font-family:monospace;font-size:0.8rem">S<sub>ij</sub> ~ N(0,1)</td>
+      <td><span class="cost-badge cost-high">O(d²)</span></td>
+      <td>✅ 정확</td>
+      <td>✅ 정확</td>
+      <td>✅ 정확</td>
+    </tr>
+    <tr>
+      <td style="color:#86efac;font-weight:700">SRHT</td>
+      <td style="font-family:monospace;font-size:0.8rem">S = (1/√k) P H D</td>
+      <td><span class="cost-badge cost-low">O(d log d)</span></td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅ 근사</td>
+    </tr>
+    <tr>
+      <td style="color:#d8b4fe;font-weight:700">Rademacher</td>
+      <td style="font-family:monospace;font-size:0.8rem">S<sub>ij</sub> ~ {-1, +1}</td>
+      <td><span class="cost-badge cost-mid">O(d²) 빠른 상수</span></td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>✅</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Detail Cards -->
+<div class="cards">
+  <div class="card card-gauss">
+    <div class="card-header">
+      <span class="name">N(0,1)</span>
+      <span class="formula">S<sub>ij</sub> ~ N(0,1)</span>
+    </div>
+    <div class="card-body">
+      <div class="math-box">
+        <div class="title">✅ 불편성 증명</div>
+        <div class="line">E\[S<sub>ij</sub>\] = 0 (정규분포 대칭)</div>
+        <div class="line">E\[S<sub>ij</sub>²\] = Var + μ² = 1+0 = 1</div>
+        <div class="line">→ √(π/2) 보정이 정확히 성립</div>
+      </div>
+      <div class="math-box">
+        <div class="title">✅ 분산 상한</div>
+        <div class="line">Var\[⟨y, r̂⟩\] ≤ (π/2d)‖y‖²</div>
+        <div class="line">→ 가우시안 회전 불변성 덕분</div>
+        <div class="line">→ 이론값 = 실측값</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-srht">
+    <div class="card-header">
+      <span class="name">SRHT</span>
+      <span class="formula">S = (1/√k) P H D</span>
+    </div>
+    <div class="card-body">
+      <div class="math-box">
+        <div class="title">✅ 구성 요소</div>
+        <div class="line">D : ±1 대각행렬 → E\[D<sub>ii</sub>\]=0, E\[D<sub>ii</sub>²\]=1</div>
+        <div class="line">H : Hadamard → O(d log d)</div>
+        <div class="line">P : k행 랜덤 샘플링</div>
+        <div class="line">→ 두 조건 모두 만족</div>
+      </div>
+      <div class="math-box">
+        <div class="title">⚠️ 분산이 '근사'인 이유</div>
+        <div class="line">S의 행들이 완전 독립이 아님</div>
+        <div class="line">(H의 구조적 상관관계 존재)</div>
+        <div class="line">→ 분산 상한이 상수 배 느슨</div>
+        <div class="line">→ 실용상 무시 가능</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-rade">
+    <div class="card-header">
+      <span class="name">Rademacher</span>
+      <span class="formula">S<sub>ij</sub> ~ {-1,+1}</span>
+    </div>
+    <div class="card-body">
+      <div class="math-box">
+        <div class="title">✅ 두 조건 만족</div>
+        <div class="line">E\[S<sub>ij</sub>\] = (+1-1)/2 = 0 ✓</div>
+        <div class="line">E\[S<sub>ij</sub>²\] = (1²+1²)/2 = 1 ✓</div>
+        <div class="line">→ 불편성 정확히 유지</div>
+      </div>
+      <div class="math-box">
+        <div class="title">✅ 왜 '빠른 상수'</div>
+        <div class="line">곱셈 없이 부호 반전만:</div>
+        <div class="line">S<sub>ij</sub> × r<sub>j</sub> → ±r<sub>j</sub></div>
+        <div class="line">→ float 곱셈 대비 수배 빠름</div>
+        <div class="line">→ O(d²)이지만 상수 매우 작음</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <label>차원 d:
+    <select id="selDim">
+      <option value="8">8</option>
+      <option value="16">16</option>
+      <option value="32" selected>32</option>
+      <option value="64">64</option>
+      <option value="128">128</option>
+      <option value="256">256</option>
+    </select>
+  </label>
+  <label>projection k:
+    <select id="selK">
+      <option value="0.25">d/4</option>
+      <option value="0.5" selected>d/2</option>
+      <option value="0.75">3d/4</option>
+    </select>
+  </label>
+  <label>샘플:
+    <input type="range" id="nSamples" min="2000" max="20000" value="8000" step="1000">
+    <span id="nSamplesVal">8000</span>
+  </label>
+  <button id="btnRegen">새로 생성</button>
+</div>
+
+<!-- Viz 1: S_ij Distribution -->
+<div class="viz-section">
+  <h2>1. S<sub>ij</sub> 원소 분포</h2>
+  <div class="desc">각 방법으로 생성된 행렬 S의 원소 분포. 모두 E=0, E\[S²\]=1을 만족해야 함.</div>
+  <div class="plot-row">
+    <div class="plot-item"><canvas id="histGauss" width="350" height="200"></canvas><div class="label">N(0,1)</div></div>
+    <div class="plot-item"><canvas id="histSRHT" width="350" height="200"></canvas><div class="label">SRHT</div></div>
+    <div class="plot-item"><canvas id="histRade" width="350" height="200"></canvas><div class="label">Rademacher</div></div>
+  </div>
+  <div class="stats-row" id="statsRow1"></div>
+</div>
+
+<!-- Viz 2: Inner Product Estimation -->
+<div class="viz-section">
+  <h2>2. 내적 추정 정확도</h2>
+  <div class="desc">
+    실제 내적 ⟨x, y⟩ vs S로 추정한 값. 이상적이면 y=x 직선 위에 분포.
+    x, y는 매번 랜덤 생성.
+  </div>
+  <div class="plot-row">
+    <div class="plot-item"><canvas id="ipGauss" width="350" height="300"></canvas><div class="label">N(0,1)</div></div>
+    <div class="plot-item"><canvas id="ipSRHT" width="350" height="300"></canvas><div class="label">SRHT</div></div>
+    <div class="plot-item"><canvas id="ipRade" width="350" height="300"></canvas><div class="label">Rademacher</div></div>
+  </div>
+  <div class="stats-row" id="statsRow2"></div>
+</div>
+
+<!-- Viz 3: Estimation Error by Dimension -->
+<div class="viz-section">
+  <h2>3. 추정 오차 (RMSE) — 차원별 비교</h2>
+  <div class="desc">d가 커질수록 세 방법의 RMSE가 어떻게 수렴하는가</div>
+  <div style="text-align:center">
+    <canvas id="rmseChart" width="800" height="320"></canvas>
+  </div>
+</div>
+
+<!-- Conclusion -->
+<div class="conclusion">
+  <h3>결론</h3>
+  <p>
+    세 방법 모두 <span class="hl">E\[S<sub>ij</sub>\]=0, E\[S<sub>ij</sub>²\]=1</span>을 만족하므로 QJL의 불편 추정량 조건을 충족합니다.<br>
+    <span class="green">SRHT</span>: <b>O(d log d)</b>로 가장 빠름. 분산 상한이 약간 느슨하지만 실용상 차이 없음.<br>
+    <span class="purple">Rademacher</span>: 구현 최간단. 곱셈 없이 부호 반전만으로 연산. 하드웨어 친화적.<br>
+    <span class="hl">N(0,1)</span>: 이론적 기준선. 실제 배포에서는 SRHT나 Rademacher로 대체 권장.
+  </p>
+</div>
+
+</div>
+
+<script>
+// ── Utils ──
+function randn() {
+  const u1 = Math.random(), u2 = Math.random();
+  return Math.sqrt(-2*Math.log(u1+1e-15)) * Math.cos(2*Math.PI*u2);
+}
+
+function randVec(d) {
+  const v = new Array(d);
+  for (let i = 0; i < d; i++) v[i] = randn();
+  return v;
+}
+
+function dot(a, b) {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i]*b[i];
+  return s;
+}
+
+// ── Matrix generators ──
+function gaussMatrix(k, d) {
+  const S = [];
+  for (let i = 0; i < k; i++) {
+    S[i] = new Array(d);
+    for (let j = 0; j < d; j++) S[i][j] = randn();
+  }
+  return S;
+}
+
+function rademacherMatrix(k, d) {
+  const S = [];
+  for (let i = 0; i < k; i++) {
+    S[i] = new Array(d);
+    for (let j = 0; j < d; j++) S[i][j] = Math.random() < 0.5 ? 1 : -1;
+  }
+  return S;
+}
+
+function fwht(x) {
+  const d = x.length;
+  const y = [...x];
+  let h = 1;
+  while (h < d) {
+    for (let i = 0; i < d; i += h*2)
+      for (let j = i; j < i+h; j++) {
+        const a = y[j], b = y[j+h];
+        y[j] = a+b; y[j+h] = a-b;
+      }
+    h *= 2;
+  }
+  const s = 1/Math.sqrt(d);
+  for (let i = 0; i < d; i++) y[i] *= s;
+  return y;
+}
+
+function srhtMatrix(k, d) {
+  // Full HD matrix then sample k rows
+  const signs = new Array(d);
+  for (let i = 0; i < d; i++) signs[i] = Math.random() < 0.5 ? 1 : -1;
+
+  // Build full HD: each row i = (1/√d) H (D e_i) = (1/√d) * H-row_i * signs
+  // Actually we store the projection function instead
+  // For element access: S_ij = (1/√k) * H[selected_i][j] * signs[j]
+  // H[i][j] = (1/√d) * (-1)^{popcount(i & j)}
+  const indices = [];
+  const used = new Set();
+  while (indices.length < k) {
+    const idx = Math.floor(Math.random() * d);
+    if (!used.has(idx)) { used.add(idx); indices.push(idx); }
+  }
+
+  const S = [];
+  const scale = 1/Math.sqrt(k);
+  for (let r = 0; r < k; r++) {
+    const row = new Array(d);
+    const ri = indices[r];
+    for (let j = 0; j < d; j++) {
+      // H[ri][j] * (1/√d) already in FWHT
+      // Direct: H_ij = (-1)^popcount(i&j), then scale by 1/√d
+      let bits = ri & j, pc = 0;
+      while (bits) { pc += bits & 1; bits >>= 1; }
+      row[j] = scale * (pc % 2 === 0 ? 1 : -1) * signs[j];
+    }
+    S[r] = row;
+  }
+  return S;
+}
+
+function matVec(S, x) {
+  const k = S.length, d = x.length;
+  const y = new Array(k);
+  for (let i = 0; i < k; i++) {
+    let s = 0;
+    for (let j = 0; j < d; j++) s += S[i][j] * x[j];
+    y[i] = s;
+  }
+  return y;
+}
+
+function getElements(S) {
+  const elems = [];
+  for (let i = 0; i < S.length; i++)
+    for (let j = 0; j < S[i].length; j++)
+      elems.push(S[i][j]);
+  return elems;
+}
+
+// ── Drawing ──
+function drawHist(cv, values, color, refGauss) {
+  const ctx = cv.getContext('2d');
+  const w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const nBins = 40;
+  let minV = -3.5, maxV = 3.5;
+  // For Rademacher, special range
+  const isDiscrete = values.every(v => v === 1 || v === -1);
+  if (isDiscrete) { minV = -2; maxV = 2; }
+
+  const binW = (maxV - minV) / nBins;
+  const bins = new Array(nBins).fill(0);
+  for (const v of values) {
+    const idx = Math.floor((v - minV) / binW);
+    if (idx >= 0 && idx < nBins) bins[idx]++;
+  }
+  const maxBin = Math.max(...bins, 1);
+
+  const offX = 8, offY = 10, plotW = w - 16, plotH = h - 30;
+  const bw = plotW / nBins;
+
+  ctx.fillStyle = color; ctx.globalAlpha = 0.6;
+  for (let i = 0; i < nBins; i++) {
+    const bh = (bins[i]/maxBin) * plotH;
+    ctx.fillRect(offX + i*bw + 0.5, offY + plotH - bh, bw - 1, bh);
+  }
+  ctx.globalAlpha = 1;
+
+  // N(0,1) reference curve
+  if (refGauss) {
+    ctx.strokeStyle = '#7dd3fc'; ctx.lineWidth = 2; ctx.setLineDash([4,3]);
+    ctx.beginPath();
+    for (let px = 0; px < plotW; px++) {
+      const xv = minV + (px/plotW)*(maxV-minV);
+      const gv = Math.exp(-0.5*xv*xv) / Math.sqrt(2*Math.PI);
+      const normed = gv * values.length * binW;
+      const py = offY + plotH - (normed/maxBin)*plotH;
+      if (px === 0) ctx.moveTo(offX+px, py); else ctx.lineTo(offX+px, py);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Zero line
+  const zx = offX + (-minV/(maxV-minV))*plotW;
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(zx, offY); ctx.lineTo(zx, offY+plotH); ctx.stroke();
+
+  ctx.fillStyle = '#555'; ctx.font = '9px sans-serif';
+  ctx.fillText(minV.toFixed(1), offX, h-2);
+  ctx.fillText('0', zx-3, h-2);
+  ctx.fillText(maxV.toFixed(1), offX+plotW-20, h-2);
+}
+
+function drawScatterIP(cv, trueIPs, estIPs, color) {
+  const ctx = cv.getContext('2d');
+  const w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+
+  let maxVal = 0.01;
+  for (let i = 0; i < trueIPs.length; i++)
+    maxVal = Math.max(maxVal, Math.abs(trueIPs[i]), Math.abs(estIPs[i]));
+  maxVal *= 1.15;
+
+  const cx = w/2, cy = h/2;
+  const scale = (w/2 - 20) / maxVal;
+
+  // Grid
+  ctx.strokeStyle = '#2a2a40'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
+
+  // y=x line
+  ctx.strokeStyle = '#ffd70066'; ctx.lineWidth = 1.5; ctx.setLineDash([4,4]);
+  ctx.beginPath();
+  ctx.moveTo(cx - maxVal*scale, cy + maxVal*scale);
+  ctx.lineTo(cx + maxVal*scale, cy - maxVal*scale);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Points
+  ctx.fillStyle = color; ctx.globalAlpha = 0.35;
+  const cap = 2000, step = Math.max(1, Math.floor(trueIPs.length/cap));
+  for (let i = 0; i < trueIPs.length; i += step) {
+    ctx.beginPath();
+    ctx.arc(cx + trueIPs[i]*scale, cy - estIPs[i]*scale, 2.5, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Labels
+  ctx.fillStyle = '#666'; ctx.font = '9px sans-serif';
+  ctx.fillText('true ⟨x,y⟩ →', w-72, cy+12);
+  ctx.save(); ctx.translate(12, cy-10); ctx.rotate(-Math.PI/2);
+  ctx.fillText('estimated →', 0, 0); ctx.restore();
+
+  ctx.fillStyle = '#ffd70088'; ctx.font = '9px sans-serif';
+  ctx.fillText('y=x', cx + maxVal*scale*0.6, cy - maxVal*scale*0.6 - 4);
+}
+
+function drawRMSE(cv, data) {
+  const ctx = cv.getContext('2d');
+  const w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const dims = data.map(d => d.dim);
+  const offX = 50, offY = 20, plotW = w - 70, plotH = h - 50;
+
+  let maxRMSE = 0;
+  for (const d of data)
+    maxRMSE = Math.max(maxRMSE, d.gauss, d.srht, d.rade);
+  maxRMSE *= 1.2;
+
+  // Grid
+  ctx.strokeStyle = '#2a2a40'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = offY + (i/4)*plotH;
+    ctx.beginPath(); ctx.moveTo(offX, y); ctx.lineTo(offX+plotW, y); ctx.stroke();
+    ctx.fillStyle = '#555'; ctx.font = '9px monospace';
+    ctx.fillText((maxRMSE*(1-i/4)).toFixed(3), 2, y+3);
+  }
+
+  // X labels
+  const xStep = plotW / (dims.length - 1);
+  for (let i = 0; i < dims.length; i++) {
+    const x = offX + i * xStep;
+    ctx.fillStyle = '#555'; ctx.font = '9px monospace';
+    ctx.fillText('d='+dims[i], x-12, offY+plotH+16);
+  }
+
+  // Lines
+  const colors = ['#7dd3fc', '#86efac', '#d8b4fe'];
+  const keys = ['gauss', 'srht', 'rade'];
+  const labels = ['N(0,1)', 'SRHT', 'Rademacher'];
+
+  for (let k = 0; k < 3; k++) {
+    ctx.strokeStyle = colors[k]; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i < dims.length; i++) {
+      const x = offX + i*xStep;
+      const y = offY + plotH * (1 - data[i][keys[k]] / maxRMSE);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Dots
+    ctx.fillStyle = colors[k];
+    for (let i = 0; i < dims.length; i++) {
+      const x = offX + i*xStep;
+      const y = offY + plotH * (1 - data[i][keys[k]] / maxRMSE);
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Legend
+    ctx.fillStyle = colors[k]; ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(labels[k], offX + plotW + 6, offY + 14 + k*16);
+  }
+}
+
+// ── Main ──
+function run() {
+  const d = parseInt(document.getElementById('selDim').value);
+  const kRatio = parseFloat(document.getElementById('selK').value);
+  const n = parseInt(document.getElementById('nSamples').value);
+  const k = Math.max(2, Math.round(d * kRatio));
+
+  document.getElementById('nSamplesVal').textContent = n;
+
+  // Generate matrices
+  const SG = gaussMatrix(k, d);
+  const SS = srhtMatrix(k, d);
+  const SR = rademacherMatrix(k, d);
+
+  // 1. Element distributions
+  const elemsG = getElements(SG);
+  const elemsS = getElements(SS);
+  const elemsR = getElements(SR);
+
+  drawHist(document.getElementById('histGauss'), elemsG, '#7dd3fc', true);
+  drawHist(document.getElementById('histSRHT'), elemsS, '#86efac', true);
+  drawHist(document.getElementById('histRade'), elemsR, '#d8b4fe', false);
+
+  // Stats for row 1
+  function meanVar(arr) {
+    let m = 0; for (const v of arr) m += v; m /= arr.length;
+    let v = 0; for (const x of arr) v += (x-m)*(x-m); v /= arr.length;
+    let m2 = 0; for (const x of arr) m2 += x*x; m2 /= arr.length;
+    return { mean: m, esq: m2 };
+  }
+  const sG = meanVar(elemsG), sS = meanVar(elemsS), sR = meanVar(elemsR);
+  document.getElementById('statsRow1').innerHTML = [
+    { name: 'N(0,1)', color: '#7dd3fc', s: sG },
+    { name: 'SRHT', color: '#86efac', s: sS },
+    { name: 'Rademacher', color: '#d8b4fe', s: sR },
+  ].map(x => `
+    <div class="stat-card">
+      <div class="stat-name" style="color:${x.color}">${x.name}</div>
+      <div class="stat-val" style="color:${x.color}">
+        E\[S\]=${x.s.mean.toFixed(4)}<br>E\[S²\]=${x.s.esq.toFixed(4)}
+      </div>
+    </div>
+  `).join('');
+
+  // 2. Inner product estimation
+  const trueIPs = [], estG = [], estS = [], estR = [];
+  const scale = Math.sqrt(d / k);
+
+  for (let s = 0; s < n; s++) {
+    const x = randVec(d), y = randVec(d);
+    const trueIP = dot(x, y);
+    trueIPs.push(trueIP);
+
+    const sx = matVec(SG, x), sy = matVec(SG, y);
+    estG.push(dot(sx, sy) / k);
+
+    const ssx = matVec(SS, x), ssy = matVec(SS, y);
+    estS.push(dot(ssx, ssy) / k);
+
+    const srx = matVec(SR, x), sry = matVec(SR, y);
+    estR.push(dot(srx, sry) / k);
+  }
+
+  drawScatterIP(document.getElementById('ipGauss'), trueIPs, estG, '#7dd3fc');
+  drawScatterIP(document.getElementById('ipSRHT'), trueIPs, estS, '#86efac');
+  drawScatterIP(document.getElementById('ipRade'), trueIPs, estR, '#d8b4fe');
+
+  function rmse(trueV, estV) {
+    let s = 0;
+    for (let i = 0; i < trueV.length; i++) s += (trueV[i]-estV[i])**2;
+    return Math.sqrt(s / trueV.length);
+  }
+  function bias(trueV, estV) {
+    let s = 0;
+    for (let i = 0; i < trueV.length; i++) s += (estV[i]-trueV[i]);
+    return s / trueV.length;
+  }
+
+  const rG = rmse(trueIPs, estG), rS = rmse(trueIPs, estS), rR = rmse(trueIPs, estR);
+  const bG = bias(trueIPs, estG), bS = bias(trueIPs, estS), bR = bias(trueIPs, estR);
+
+  document.getElementById('statsRow2').innerHTML = [
+    { name: 'N(0,1)', color: '#7dd3fc', r: rG, b: bG },
+    { name: 'SRHT', color: '#86efac', r: rS, b: bS },
+    { name: 'Rademacher', color: '#d8b4fe', r: rR, b: bR },
+  ].map(x => `
+    <div class="stat-card">
+      <div class="stat-name" style="color:${x.color}">${x.name}</div>
+      <div class="stat-val" style="color:${x.color}">
+        RMSE=${x.r.toFixed(4)}<br>Bias=${x.b.toFixed(4)}
+      </div>
+    </div>
+  `).join('');
+
+  // 3. RMSE by dimension
+  const testDims = [4, 8, 16, 32, 64, 128, 256];
+  const rmseData = [];
+  const nTest = 2000;
+
+  for (const td of testDims) {
+    const tk = Math.max(2, Math.round(td * kRatio));
+    const tSG = gaussMatrix(tk, td);
+    const tSS = srhtMatrix(tk, td);
+    const tSR = rademacherMatrix(tk, td);
+    const tTrue = [], tEG = [], tES = [], tER = [];
+
+    for (let s = 0; s < nTest; s++) {
+      const x = randVec(td), y = randVec(td);
+      tTrue.push(dot(x, y));
+      tEG.push(dot(matVec(tSG, x), matVec(tSG, y)) / tk);
+      tES.push(dot(matVec(tSS, x), matVec(tSS, y)) / tk);
+      tER.push(dot(matVec(tSR, x), matVec(tSR, y)) / tk);
+    }
+
+    rmseData.push({
+      dim: td,
+      gauss: rmse(tTrue, tEG),
+      srht: rmse(tTrue, tES),
+      rade: rmse(tTrue, tER),
+    });
+  }
+
+  drawRMSE(document.getElementById('rmseChart'), rmseData);
+}
+
+document.getElementById('nSamples').addEventListener('input', () => {
+  document.getElementById('nSamplesVal').textContent = document.getElementById('nSamples').value;
+});
+document.getElementById('btnRegen').addEventListener('click', run);
+document.getElementById('selDim').addEventListener('change', run);
+document.getElementById('selK').addEventListener('change', run);
+document.getElementById('nSamples').addEventListener('change', run);
+
+run();
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TurboQuant Rotation Study</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f0f1a; color: #e0e0e0;
+    display: flex; justify-content: center; align-items: center; min-height: 100vh;
+  }
+  .container { max-width: 600px; padding: 40px 24px; }
+  h1 { font-size: 1.6rem; color: #fff; margin-bottom: 8px; }
+  .desc { color: #888; font-size: 0.9rem; line-height: 1.6; margin-bottom: 32px; }
+  .links { display: flex; flex-direction: column; gap: 12px; }
+  a {
+    display: block; padding: 16px 20px;
+    background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 10px;
+    color: #4fc3f7; text-decoration: none; font-size: 1rem;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  a:hover { background: #2a2a4a; border-color: #4fc3f7; }
+  a .sub { display: block; font-size: 0.78rem; color: #888; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>TurboQuant Rotation Study</h1>
+  <p class="desc">
+    TurboQuant의 랜덤 직교행렬 R을 FWHT로 대체할 수 있는지 검증하는 interactive visualization.
+  </p>
+  <div class="links">
+    <a href="rotation_compare_2d.html">
+      2D Rotation Compare
+      <span class="sub">R vs HD 단계별 벡터 변환 과정 비교</span>
+    </a>
+    <a href="r_vs_fwht_by_dimension.html">
+      R vs FWHT by Dimension
+      <span class="sub">d=2~256 차원별 출력 분포 scatter + histogram</span>
+    </a>
+    <a href="cascade_hd_deploy.html">
+      Cascade HD
+      <span class="sub">HD 1~4회 반복 적용 시 분포 변화 (D 고정)</span>
+    </a>
+    <a href="qjl_matrix_compare.html">
+      QJL Matrix Compare
+      <span class="sub">N(0,1) vs SRHT vs Rademacher 내적 추정 정확도 비교</span>
+    </a>
+  </div>
+</div>
+</body>
+</html>

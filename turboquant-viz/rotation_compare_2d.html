@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Random Rotation vs RHT (Randomized Hadamard Transform) — 2D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f0f1a;
+    color: #e0e0e0;
+    overflow-x: hidden;
+  }
+  h1 {
+    text-align: center;
+    padding: 24px 16px 8px;
+    font-size: 1.5rem;
+    color: #fff;
+  }
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+  }
+
+  /* ── Layout ── */
+  .container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 24px;
+    padding: 0 24px 24px;
+  }
+  .panel {
+    background: #1a1a2e;
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 340px;
+    flex: 1;
+    max-width: 520px;
+  }
+  .panel h2 {
+    font-size: 1.1rem;
+    margin-bottom: 4px;
+    color: #fff;
+  }
+  .panel .formula {
+    font-family: 'Times New Roman', serif;
+    font-size: 1.3rem;
+    color: #ffd700;
+    margin-bottom: 12px;
+  }
+  canvas {
+    display: block;
+    margin: 0 auto;
+    background: #12121e;
+    border-radius: 8px;
+  }
+  .legend {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-top: 8px;
+    font-size: 0.8rem;
+  }
+  .legend span { display: flex; align-items: center; gap: 4px; }
+  .dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+
+  /* ── Step-by-step panel ── */
+  .step-panel {
+    background: #1a1a2e;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 0 24px 24px;
+    max-width: 1080px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .step-panel h2 {
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+    color: #fff;
+  }
+  .steps-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .step-box {
+    text-align: center;
+  }
+  .step-box canvas {
+    margin-bottom: 4px;
+  }
+  .step-label {
+    font-size: 0.75rem;
+    color: #aaa;
+  }
+  .step-label em {
+    color: #ffd700;
+    font-style: normal;
+    font-family: 'Times New Roman', serif;
+  }
+  .arrow {
+    font-size: 1.5rem;
+    color: #555;
+    margin-top: -20px;
+  }
+
+  /* ── Controls ── */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    padding: 12px 24px;
+    align-items: center;
+  }
+  .controls label {
+    font-size: 0.85rem;
+    color: #aaa;
+  }
+  .controls input[type="range"] {
+    width: 120px;
+    accent-color: #ffd700;
+  }
+  .controls button {
+    background: #2a2a4a;
+    color: #fff;
+    border: 1px solid #444;
+    padding: 6px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .controls button:hover { background: #3a3a5a; }
+  .controls button.active { background: #ffd700; color: #000; border-color: #ffd700; }
+
+  /* ── Info cards ── */
+  .info-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    padding: 0 24px 16px;
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+  .info-card {
+    background: #1a1a2e;
+    border-radius: 8px;
+    padding: 12px 16px;
+    flex: 1;
+    min-width: 200px;
+    max-width: 340px;
+  }
+  .info-card h3 {
+    font-size: 0.85rem;
+    color: #ffd700;
+    margin-bottom: 4px;
+  }
+  .info-card p {
+    font-size: 0.8rem;
+    color: #bbb;
+    line-height: 1.5;
+  }
+  .info-card .val {
+    font-family: 'Courier New', monospace;
+    color: #4fc3f7;
+  }
+
+  /* ── Matrix display ── */
+  .matrix-section {
+    max-width: 1080px;
+    margin: 0 auto 24px;
+    padding: 0 24px;
+  }
+  .matrix-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+  }
+  .matrix-box {
+    background: #1a1a2e;
+    border-radius: 8px;
+    padding: 12px 16px;
+    text-align: center;
+  }
+  .matrix-box h3 {
+    font-size: 0.9rem;
+    color: #ffd700;
+    margin-bottom: 8px;
+    font-family: 'Times New Roman', serif;
+  }
+  .matrix-grid {
+    display: inline-grid;
+    grid-template-columns: repeat(2, 48px);
+    gap: 2px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+  }
+  .matrix-grid .cell {
+    padding: 6px;
+    background: #222240;
+    border-radius: 3px;
+    text-align: center;
+  }
+  .cell.pos { color: #4caf50; }
+  .cell.neg { color: #ef5350; }
+</style>
+</head>
+<body>
+
+<h1>Random Rotation vs Randomized Hadamard Transform</h1>
+<p class="subtitle">2D 벡터에 두 변환을 적용 — 같은 입력, 다른 방법, 비슷한 결과</p>
+
+<!-- Controls -->
+<div class="controls">
+  <label>입력 벡터 각도: <input type="range" id="angleSlider" min="0" max="360" value="30"> <span id="angleVal">30</span>deg</label>
+  <label>D 부호: <button id="btnD" title="D 대각 부호 변경">d = [+1, -1]</button></label>
+  <button id="btnAnimate" class="active">회전 애니메이션</button>
+  <button id="btnRandom">새 랜덤 R 생성</button>
+</div>
+
+<!-- Main comparison -->
+<div class="container">
+  <div class="panel">
+    <h2>Random Rotation</h2>
+    <div class="formula">x&#771; = Rx</div>
+    <canvas id="cvRandom" width="400" height="400"></canvas>
+    <div class="legend">
+      <span><span class="dot" style="background:#4fc3f7"></span> 입력 x</span>
+      <span><span class="dot" style="background:#ff6b6b"></span> 출력 Rx</span>
+      <span><span class="dot" style="background:#333"></span> 단위원</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Randomized Hadamard (RHT)</h2>
+    <div class="formula">x&#771; = (1/&radic;d) H D x</div>
+    <canvas id="cvHadamard" width="400" height="400"></canvas>
+    <div class="legend">
+      <span><span class="dot" style="background:#4fc3f7"></span> 입력 x</span>
+      <span><span class="dot" style="background:#ffd700"></span> 출력 HDx/&radic;d</span>
+      <span><span class="dot" style="background:#4caf50"></span> Dx (중간)</span>
+    </div>
+  </div>
+</div>
+
+<!-- Matrix display -->
+<div class="matrix-section">
+  <div class="matrix-row">
+    <div class="matrix-box">
+      <h3>R (랜덤 직교행렬)</h3>
+      <div class="matrix-grid" id="matR"></div>
+      <p style="color:#888;font-size:0.7rem;margin-top:4px">O(d<sup>2</sup>) 저장</p>
+    </div>
+    <div class="matrix-box">
+      <h3>D (대각행렬)</h3>
+      <div class="matrix-grid" id="matD"></div>
+      <p style="color:#888;font-size:0.7rem;margin-top:4px">O(d) 저장 - 부호만</p>
+    </div>
+    <div class="matrix-box">
+      <h3>H (Hadamard)</h3>
+      <div class="matrix-grid" id="matH"></div>
+      <p style="color:#888;font-size:0.7rem;margin-top:4px">저장 불필요 - 구조 고정</p>
+    </div>
+    <div class="matrix-box">
+      <h3>(1/&radic;d) HD</h3>
+      <div class="matrix-grid" id="matHD"></div>
+      <p style="color:#888;font-size:0.7rem;margin-top:4px">= RHT 등가 행렬</p>
+    </div>
+  </div>
+</div>
+
+<!-- Step by step for RHT -->
+<div class="step-panel">
+  <h2>RHT Step-by-Step: x &rarr; Dx &rarr; HDx &rarr; (1/&radic;d)HDx</h2>
+  <div class="steps-row">
+    <div class="step-box">
+      <canvas id="cvStep0" width="160" height="160"></canvas>
+      <div class="step-label"><em>x</em> (입력)</div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="step-box">
+      <canvas id="cvStep1" width="160" height="160"></canvas>
+      <div class="step-label"><em>Dx</em> (부호 뒤집기)</div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="step-box">
+      <canvas id="cvStep2" width="160" height="160"></canvas>
+      <div class="step-label"><em>HDx</em> (Hadamard)</div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="step-box">
+      <canvas id="cvStep3" width="160" height="160"></canvas>
+      <div class="step-label"><em>(1/&radic;d)HDx</em> (정규화)</div>
+    </div>
+  </div>
+</div>
+
+<!-- Info cards -->
+<div class="info-row">
+  <div class="info-card">
+    <h3>입력 벡터</h3>
+    <p>x = [<span class="val" id="infoX"></span>]</p>
+    <p>||x|| = <span class="val" id="infoNormX"></span></p>
+  </div>
+  <div class="info-card">
+    <h3>Random Rotation 출력</h3>
+    <p>Rx = [<span class="val" id="infoRx"></span>]</p>
+    <p>||Rx|| = <span class="val" id="infoNormRx"></span></p>
+    <p>회전각 = <span class="val" id="infoAngleR"></span>deg</p>
+  </div>
+  <div class="info-card">
+    <h3>RHT 출력</h3>
+    <p>(1/&radic;d)HDx = [<span class="val" id="infoHDx"></span>]</p>
+    <p>||(1/&radic;d)HDx|| = <span class="val" id="infoNormHDx"></span></p>
+    <p>회전각 = <span class="val" id="infoAngleHD"></span>deg</p>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// Math helpers
+// ══════════════════════════════════════════════════════════════════
+
+const D = 2; // dimension
+const H2 = [[1, 1], [1, -1]]; // 2x2 Hadamard (unnormalized)
+
+let diagSigns = [1, -1]; // D diagonal
+let R = null; // random rotation matrix
+
+function generateRandomRotation() {
+  const theta = Math.random() * 2 * Math.PI;
+  R = [
+    [Math.cos(theta), -Math.sin(theta)],
+    [Math.sin(theta),  Math.cos(theta)]
+  ];
+  return theta;
+}
+
+function matVec(M, v) {
+  return [
+    M[0][0] * v[0] + M[0][1] * v[1],
+    M[1][0] * v[0] + M[1][1] * v[1]
+  ];
+}
+
+function applyD(v) {
+  return [diagSigns[0] * v[0], diagSigns[1] * v[1]];
+}
+
+function applyH(v) {
+  return matVec(H2, v);
+}
+
+function applyRHT(v) {
+  const dv = applyD(v);
+  const hdv = applyH(dv);
+  const s = 1 / Math.sqrt(D);
+  return { dx: dv, hdx: hdv, result: [hdv[0] * s, hdv[1] * s] };
+}
+
+function norm(v) { return Math.sqrt(v[0]*v[0] + v[1]*v[1]); }
+function angleDeg(v) { return Math.atan2(v[1], v[0]) * 180 / Math.PI; }
+
+// ══════════════════════════════════════════════════════════════════
+// Canvas drawing
+// ══════════════════════════════════════════════════════════════════
+
+function drawGrid(ctx, w, h, scale) {
+  const cx = w / 2, cy = h / 2;
+  ctx.clearRect(0, 0, w, h);
+
+  // Grid lines
+  ctx.strokeStyle = '#1e1e35';
+  ctx.lineWidth = 1;
+  for (let i = -5; i <= 5; i++) {
+    const px = cx + i * scale;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
+    const py = cy + i * scale;
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
+  }
+
+  // Axes
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
+
+  // Unit circle
+  ctx.strokeStyle = '#2a2a45';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, scale, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawVector(ctx, cx, cy, scale, v, color, label, lineWidth = 2.5) {
+  const ex = cx + v[0] * scale;
+  const ey = cy - v[1] * scale; // flip y
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+
+  // Arrowhead
+  const angle = Math.atan2(-(v[1]), v[0]);
+  const headLen = 10;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - headLen * Math.cos(angle - 0.4), ey + headLen * Math.sin(angle - 0.4));
+  ctx.lineTo(ex - headLen * Math.cos(angle + 0.4), ey + headLen * Math.sin(angle + 0.4));
+  ctx.closePath();
+  ctx.fill();
+
+  // Dot
+  ctx.beginPath();
+  ctx.arc(ex, ey, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Label
+  if (label) {
+    ctx.fillStyle = color;
+    ctx.font = '12px -apple-system, sans-serif';
+    const off = 14;
+    ctx.fillText(label, ex + off * Math.cos(angle), ey - off * Math.sin(angle));
+  }
+}
+
+function drawArc(ctx, cx, cy, scale, from, to, color) {
+  const r = scale * 0.35;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  // canvas angles: 0 is right, positive is clockwise, but we flip y
+  const a1 = -from;
+  const a2 = -to;
+  ctx.arc(cx, cy, r, a1, a2, a2 > a1);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Main render
+// ══════════════════════════════════════════════════════════════════
+
+let animating = true;
+let animAngle = 30;
+let animSpeed = 0.3;
+
+function render() {
+  const angleDegInput = animating ? animAngle : parseFloat(document.getElementById('angleSlider').value);
+  if (!animating) document.getElementById('angleVal').textContent = Math.round(angleDegInput);
+
+  const rad = angleDegInput * Math.PI / 180;
+  const x = [Math.cos(rad), Math.sin(rad)]; // unit vector
+
+  // ── Random rotation ──
+  const rx = matVec(R, x);
+
+  const cv1 = document.getElementById('cvRandom');
+  const ctx1 = cv1.getContext('2d');
+  const w1 = cv1.width, h1 = cv1.height;
+  const scale1 = 140;
+  const cx1 = w1/2, cy1 = h1/2;
+
+  drawGrid(ctx1, w1, h1, scale1);
+  drawArc(ctx1, cx1, cy1, scale1, Math.atan2(x[1], x[0]), Math.atan2(rx[1], rx[0]), '#ff6b6b');
+  drawVector(ctx1, cx1, cy1, scale1, x, '#4fc3f7', 'x');
+  drawVector(ctx1, cx1, cy1, scale1, rx, '#ff6b6b', 'Rx');
+
+  // ── RHT ──
+  const rht = applyRHT(x);
+
+  const cv2 = document.getElementById('cvHadamard');
+  const ctx2 = cv2.getContext('2d');
+  const w2 = cv2.width, h2 = cv2.height;
+  const scale2 = 140;
+  const cx2 = w2/2, cy2 = h2/2;
+
+  drawGrid(ctx2, w2, h2, scale2);
+  drawVector(ctx2, cx2, cy2, scale2, rht.dx, '#4caf50', 'Dx', 1.5);
+  drawArc(ctx2, cx2, cy2, scale2, Math.atan2(x[1], x[0]), Math.atan2(rht.result[1], rht.result[0]), '#ffd700');
+  drawVector(ctx2, cx2, cy2, scale2, x, '#4fc3f7', 'x');
+  drawVector(ctx2, cx2, cy2, scale2, rht.result, '#ffd700', 'HDx/√d');
+
+  // ── Step-by-step ──
+  const stepScale = 50;
+  const steps = [
+    { id: 'cvStep0', vecs: [{v: x, c: '#4fc3f7'}] },
+    { id: 'cvStep1', vecs: [{v: x, c: '#4fc3f744'}, {v: rht.dx, c: '#4caf50'}] },
+    { id: 'cvStep2', vecs: [{v: rht.dx, c: '#4caf5044'}, {v: rht.hdx, c: '#ff9800'}] },
+    { id: 'cvStep3', vecs: [{v: rht.hdx, c: '#ff980044'}, {v: rht.result, c: '#ffd700'}] },
+  ];
+  for (const s of steps) {
+    const cv = document.getElementById(s.id);
+    const ctx = cv.getContext('2d');
+    drawGrid(ctx, cv.width, cv.height, stepScale);
+    for (const {v, c} of s.vecs) {
+      drawVector(ctx, cv.width/2, cv.height/2, stepScale, v, c, null, 2);
+    }
+  }
+
+  // ── Info ──
+  document.getElementById('infoX').textContent = x.map(v => v.toFixed(3)).join(', ');
+  document.getElementById('infoNormX').textContent = norm(x).toFixed(4);
+  document.getElementById('infoRx').textContent = rx.map(v => v.toFixed(3)).join(', ');
+  document.getElementById('infoNormRx').textContent = norm(rx).toFixed(4);
+  document.getElementById('infoAngleR').textContent = (angleDeg(rx) - angleDeg(x)).toFixed(1);
+  document.getElementById('infoHDx').textContent = rht.result.map(v => v.toFixed(3)).join(', ');
+  document.getElementById('infoNormHDx').textContent = norm(rht.result).toFixed(4);
+  document.getElementById('infoAngleHD').textContent = (angleDeg(rht.result) - angleDeg(x)).toFixed(1);
+
+  // ── Matrices ──
+  renderMatrix('matR', R);
+  renderMatrix('matD', [[diagSigns[0], 0], [0, diagSigns[1]]]);
+  renderMatrix('matH', H2);
+  const s = 1 / Math.sqrt(D);
+  const HD = [
+    [H2[0][0]*diagSigns[0]*s, H2[0][1]*diagSigns[1]*s],
+    [H2[1][0]*diagSigns[0]*s, H2[1][1]*diagSigns[1]*s]
+  ];
+  renderMatrix('matHD', HD);
+}
+
+function renderMatrix(id, M) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  for (let i = 0; i < 2; i++) {
+    for (let j = 0; j < 2; j++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell ' + (M[i][j] >= 0 ? 'pos' : 'neg');
+      cell.textContent = M[i][j] === 0 ? '0' : (Number.isInteger(M[i][j]) ? M[i][j] : M[i][j].toFixed(3));
+      el.appendChild(cell);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Controls
+// ══════════════════════════════════════════════════════════════════
+
+let rotAngle = generateRandomRotation();
+
+document.getElementById('angleSlider').addEventListener('input', () => {
+  animating = false;
+  document.getElementById('btnAnimate').classList.remove('active');
+  render();
+});
+
+document.getElementById('btnD').addEventListener('click', () => {
+  // Cycle through 4 combinations
+  const combos = [[1,1],[1,-1],[-1,1],[-1,-1]];
+  const cur = combos.findIndex(c => c[0]===diagSigns[0] && c[1]===diagSigns[1]);
+  const next = (cur + 1) % 4;
+  diagSigns = combos[next];
+  document.getElementById('btnD').textContent = `d = [${diagSigns[0]>0?'+':'-'}1, ${diagSigns[1]>0?'+':'-'}1]`;
+  render();
+});
+
+document.getElementById('btnAnimate').addEventListener('click', function() {
+  animating = !animating;
+  this.classList.toggle('active', animating);
+});
+
+document.getElementById('btnRandom').addEventListener('click', () => {
+  rotAngle = generateRandomRotation();
+  render();
+});
+
+// Animation loop
+function loop() {
+  if (animating) {
+    animAngle = (animAngle + animSpeed) % 360;
+    document.getElementById('angleSlider').value = Math.round(animAngle);
+    document.getElementById('angleVal').textContent = Math.round(animAngle);
+    render();
+  }
+  requestAnimationFrame(loop);
+}
+
+render();
+loop();
+</script>
+</body>
+</html>

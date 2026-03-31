@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Random Rotation vs FWHT — 차원별 출력 분포 비교</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f0f1a; color: #e0e0e0;
+  }
+  h1 { text-align: center; padding: 24px 16px 4px; font-size: 1.4rem; color: #fff; }
+  .subtitle { text-align: center; color: #888; font-size: 0.85rem; margin-bottom: 6px; line-height: 1.5; }
+  .key-msg {
+    text-align: center; padding: 8px 16px 16px;
+    font-size: 0.95rem; color: #ffd700;
+  }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+    padding: 4px 20px 16px; align-items: center;
+  }
+  .controls label { font-size: 0.85rem; color: #aaa; }
+  .controls button {
+    background: #2a2a4a; color: #fff; border: 1px solid #444;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+  }
+  .controls button:hover { background: #3a3a5a; }
+  .controls select {
+    background: #2a2a4a; color: #fff; border: 1px solid #444;
+    padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(620px, 1fr));
+    gap: 16px; padding: 0 20px 20px;
+    max-width: 1900px; margin: 0 auto;
+  }
+  .cell {
+    background: #1a1a2e; border-radius: 10px; padding: 14px;
+  }
+  .cell h2 { font-size: 1rem; color: #fff; margin-bottom: 2px; }
+  .cell .meta { font-size: 0.78rem; color: #888; margin-bottom: 8px; line-height: 1.5; }
+  .cell .meta .val { color: #4fc3f7; font-family: 'Courier New', monospace; }
+  canvas { display: block; margin: 0 auto; background: #12121e; border-radius: 6px; }
+
+  .six-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+  }
+  .six-grid .row-label {
+    grid-column: 1 / -1;
+    font-size: 0.75rem; color: #555;
+    border-bottom: 1px solid #222;
+    padding: 2px 0;
+    margin-top: 4px;
+  }
+  .six-item { text-align: center; }
+  .six-item .qlabel {
+    font-size: 0.65rem; color: #777; margin-top: 2px;
+  }
+
+  .verdict {
+    font-size: 0.75rem; padding: 2px 8px; border-radius: 4px;
+    display: inline-block;
+  }
+  .verdict.bad { background: #3a1a1a; color: #ff6b6b; }
+  .verdict.warn { background: #3a3a1a; color: #ffd700; }
+  .verdict.good { background: #1a3a1a; color: #4caf50; }
+
+  .explain {
+    max-width: 1100px; margin: 0 auto 24px; padding: 0 20px;
+  }
+  .explain-box {
+    background: #1a1a2e; border-radius: 10px; padding: 16px 20px;
+    margin-bottom: 14px;
+  }
+  .explain-box h3 { font-size: 0.95rem; color: #ffd700; margin-bottom: 8px; }
+  .explain-box p { font-size: 0.85rem; color: #bbb; line-height: 1.7; }
+  .hl { color: #4fc3f7; }
+  .warn-c { color: #ff6b6b; }
+  .ok-c { color: #4caf50; }
+  .gold { color: #ffd700; }
+
+  .bias-explain {
+    max-width: 1100px; margin: 0 auto 20px; padding: 0 20px;
+  }
+  .bias-explain .row {
+    display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+  }
+  .bias-card {
+    background: #1a1a2e; border-radius: 8px; padding: 12px 14px;
+    flex: 1; min-width: 220px; max-width: 280px;
+  }
+  .bias-card h4 { font-size: 0.85rem; color: #ffd700; margin-bottom: 4px; }
+  .bias-card pre {
+    font-size: 0.75rem; color: #4fc3f7; line-height: 1.4;
+    margin-bottom: 4px;
+  }
+  .bias-card p { font-size: 0.78rem; color: #999; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<h1>Random Rotation(R) vs FWHT(HD) — 차원별 출력 분포 비교</h1>
+<p class="subtitle">
+  편향된 입력에 <b>R (랜덤 직교행렬)</b>과 <b>HD (고정 Hadamard)</b>를 각각 적용<br>
+  두 방법 모두 d가 커질수록 편향을 깨지만, 방식과 비용이 다름
+</p>
+<div class="key-msg">
+  <span style="color:#ff6b6b">R</span>: x&#771; = Rx &nbsp;(O(d&sup2;) 연산, O(d&sup2;) 메모리)
+  &nbsp;&nbsp;&nbsp;vs&nbsp;&nbsp;&nbsp;
+  <span style="color:#ffd700">HD</span>: x&#771; = (1/&radic;d)HDx &nbsp;(O(d log d) 연산, O(d) 메모리)
+</div>
+
+<div class="controls">
+  <label>편향 패턴:
+    <select id="biasType">
+      <option value="axis99">축 정렬 (x[0]에 99%)</option>
+      <option value="axis90">축 정렬 (x[0]에 90%)</option>
+      <option value="decay">지수 감쇠 (x[i] ~ e^{-i})</option>
+      <option value="block">블록 (앞 1/4에 집중)</option>
+    </select>
+  </label>
+  <label>샘플 수: <input type="range" id="nSamples" min="2000" max="30000" value="8000" step="1000"> <span id="nSamplesVal">8000</span></label>
+  <button id="btnRegen">새로 생성</button>
+</div>
+
+<!-- Bias pattern explanation -->
+<div class="bias-explain">
+  <div class="row">
+    <div class="bias-card">
+      <h4>축 정렬 (99%)</h4>
+      <pre>x = [################, |, |, |]
+      x[0]에 99%     나머지 1%</pre>
+      <p>가장 극단적인 편향. 에너지가 하나의 좌표에 집중.</p>
+    </div>
+    <div class="bias-card">
+      <h4>지수 감쇠</h4>
+      <pre>x = [########, ####, ##, #, |, |]
+      x[0]    x[1]  ...점점 감소</pre>
+      <p>실제 LLM KV cache에서 흔한 패턴. 특정 채널이 크고 나머지가 점점 작아짐.</p>
+    </div>
+    <div class="bias-card">
+      <h4>블록</h4>
+      <pre>x = [####, ####, |, |, |, |, |, |]
+      앞 1/4 집중   나머지 3/4 ≈ 0</pre>
+      <p>일부 attention head가 특정 채널 블록에 집중하는 패턴.</p>
+    </div>
+  </div>
+</div>
+
+<div class="grid" id="mainGrid"></div>
+
+<div class="explain">
+  <div class="explain-box">
+    <h3>각 블록의 6개 그림 읽는 법</h3>
+    <p>
+      각 d마다 3열 &times; 2행 = 6개 그림:<br><br>
+      <span class="hl">입력 scatter</span> &mdash; (x[0], x[1]) 투영. 편향이 클수록 x축에 몰림<br>
+      <span class="warn-c">R출력 scatter</span> &mdash; (Rx)[0,1] 투영. 랜덤 회전 결과 &mdash; <b>항상 완벽히 균등</b><br>
+      <span class="gold">HD출력 scatter</span> &mdash; (HDx)[0,1] 투영. d가 작으면 구조 남음, d가 크면 R과 동일<br><br>
+      아래 행은 각각의 <b>첫 번째 좌표 히스토그램</b>. 빨간 곡선 = 이론 정규분포 N(0, 1/d)
+    </p>
+  </div>
+  <div class="explain-box">
+    <h3>KS 거리란?</h3>
+    <p>
+      <b>KS (Kolmogorov-Smirnov) 거리</b> = 히스토그램(실측)과 빨간 곡선(이론 정규분포) 사이의 <b>최대 간격</b>.<br>
+      두 분포가 얼마나 다른지 하나의 숫자로 요약합니다.<br><br>
+      <span class="ok-c">KS &lt; 0.015</span> &rarr; 거의 동일 (OK) &nbsp;|&nbsp;
+      <span class="gold">KS 0.015~0.04</span> &rarr; 경계 (borderline) &nbsp;|&nbsp;
+      <span class="warn-c">KS &gt; 0.04</span> &rarr; 눈에 보일 정도로 다름 (NOT OK)
+    </p>
+  </div>
+  <div class="explain-box">
+    <h3>R vs HD 핵심 차이</h3>
+    <p>
+      <span class="warn-c">R (랜덤 직교행렬)</span>은 <b>어떤 차원에서든 완벽한 균등화</b>를 보장합니다.
+      d=2에서도 완벽합니다. 대신 O(d&sup2;) 비용.<br><br>
+      <span class="gold">HD (Hadamard)</span>는 <b>d가 작으면 근사</b>이지만,
+      d &ge; 64에서는 R과 구별 불가능해집니다. 비용은 O(d log d).<br><br>
+      실제 LLM의 head dimension은 128 이상이므로, <span class="ok-c">HD로 R을 완벽히 대체 가능</span>합니다.
+    </p>
+  </div>
+</div>
+
+<script>
+// ── FWHT ──
+function fwht(x) {
+  const d = x.length;
+  const y = [...x];
+  let h = 1;
+  while (h < d) {
+    for (let i = 0; i < d; i += h * 2) {
+      for (let j = i; j < i + h; j++) {
+        const a = y[j], b = y[j + h];
+        y[j] = a + b;
+        y[j + h] = a - b;
+      }
+    }
+    h *= 2;
+  }
+  const s = 1 / Math.sqrt(d);
+  for (let i = 0; i < d; i++) y[i] *= s;
+  return y;
+}
+
+function makeFixedD(d) {
+  const signs = [];
+  let state = 12345;
+  for (let i = 0; i < d; i++) {
+    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    signs.push((state % 2 === 0) ? 1 : -1);
+  }
+  return signs;
+}
+
+// Random orthogonal matrix via Modified Gram-Schmidt (numerically stable)
+function makeRandomR(d) {
+  // Generate d x d Gaussian matrix (columns = vectors to orthogonalize)
+  const V = []; // V[col][row]
+  for (let j = 0; j < d; j++) {
+    V[j] = new Array(d);
+    for (let i = 0; i < d; i++) {
+      const u1 = Math.random(), u2 = Math.random();
+      V[j][i] = Math.sqrt(-2 * Math.log(u1 + 1e-15)) * Math.cos(2 * Math.PI * u2);
+    }
+  }
+
+  // Modified Gram-Schmidt: orthogonalize column j, then remove its component from all later columns
+  for (let j = 0; j < d; j++) {
+    // Normalize column j
+    let norm = 0;
+    for (let i = 0; i < d; i++) norm += V[j][i] * V[j][i];
+    norm = Math.sqrt(norm);
+    for (let i = 0; i < d; i++) V[j][i] /= norm;
+
+    // Remove projection of column j from all subsequent columns
+    for (let k = j + 1; k < d; k++) {
+      let dot = 0;
+      for (let i = 0; i < d; i++) dot += V[j][i] * V[k][i];
+      for (let i = 0; i < d; i++) V[k][i] -= dot * V[j][i];
+    }
+  }
+
+  // Convert to row-major: Q[row][col] for y[i] = sum_j Q[i][j] * x[j]
+  const Q = [];
+  for (let i = 0; i < d; i++) {
+    Q[i] = new Array(d);
+    for (let j = 0; j < d; j++) Q[i][j] = V[j][i];
+  }
+  return Q;
+}
+
+function applyMatrix(Q, x) {
+  const d = x.length;
+  const y = new Array(d).fill(0);
+  for (let i = 0; i < d; i++)
+    for (let j = 0; j < d; j++)
+      y[i] += Q[i][j] * x[j];
+  return y;
+}
+
+function generateBiasedVector(d, biasType) {
+  const x = new Array(d).fill(0);
+  for (let i = 0; i < d; i++) {
+    const u1 = Math.random(), u2 = Math.random();
+    x[i] = Math.sqrt(-2 * Math.log(u1 + 1e-15)) * Math.cos(2 * Math.PI * u2);
+  }
+  if (biasType === 'axis99') {
+    for (let i = 1; i < d; i++) x[i] *= 0.01;
+  } else if (biasType === 'axis90') {
+    for (let i = 1; i < d; i++) x[i] *= 0.1;
+  } else if (biasType === 'decay') {
+    for (let i = 0; i < d; i++) x[i] *= Math.exp(-i * 3 / d);
+  } else if (biasType === 'block') {
+    const cutoff = Math.max(1, Math.floor(d / 4));
+    for (let i = cutoff; i < d; i++) x[i] *= 0.05;
+  }
+  let norm = 0;
+  for (let i = 0; i < d; i++) norm += x[i] * x[i];
+  norm = Math.sqrt(norm);
+  if (norm > 1e-12) for (let i = 0; i < d; i++) x[i] /= norm;
+  return x;
+}
+
+// ── Stats ──
+function erf(x) {
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const sign = x < 0 ? -1 : 1; x = Math.abs(x);
+  const t = 1/(1+p*x);
+  return sign * (1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x));
+}
+function ksDistance(a, mu, sigma) {
+  const sorted = [...a].sort((x,y) => x-y);
+  const n = sorted.length;
+  let maxD = 0;
+  for (let i = 0; i < n; i++) {
+    const ecdf = (i+1)/n;
+    const z = (sorted[i]-mu)/sigma;
+    const cdf = 0.5*(1+erf(z/Math.sqrt(2)));
+    maxD = Math.max(maxD, Math.abs(ecdf-cdf), Math.abs((i/n)-cdf));
+  }
+  return maxD;
+}
+
+// ── Drawing ──
+function drawScatter(cv, c0, c1, color, title) {
+  const ctx = cv.getContext('2d');
+  const w = cv.width, h = cv.height;
+  const cx = w/2, cy = h/2;
+  ctx.clearRect(0, 0, w, h);
+
+  let maxVal = 0.01;
+  for (let i = 0; i < c0.length; i++)
+    maxVal = Math.max(maxVal, Math.abs(c0[i]), Math.abs(c1[i]));
+  const scale = (w/2 - 16) / (maxVal * 1.1);
+
+  ctx.strokeStyle = '#2a2a40'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
+  ctx.strokeStyle = '#222240'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, scale, 0, Math.PI*2); ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.3;
+  const cap = 3000;
+  const step = Math.max(1, Math.floor(c0.length / cap));
+  for (let i = 0; i < c0.length; i += step) {
+    ctx.beginPath();
+    ctx.arc(cx + c0[i]*scale, cy - c1[i]*scale, 2, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = color; ctx.font = 'bold 10px sans-serif';
+  ctx.fillText(title, 4, 12);
+}
+
+function drawHist(cv, values, color, title, showGaussian, d) {
+  const ctx = cv.getContext('2d');
+  const w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const nBins = 30;
+  let minV, maxV;
+  if (showGaussian && d) {
+    const sigma = 1 / Math.sqrt(d);
+    const r = Math.max(4 * sigma, 0.3);
+    minV = -r; maxV = r;
+  } else {
+    const sorted = [...values].sort((a,b) => a-b);
+    const p5 = sorted[Math.floor(sorted.length * 0.005)];
+    const p95 = sorted[Math.floor(sorted.length * 0.995)];
+    const pad = (p95 - p5) * 0.15;
+    minV = p5 - pad; maxV = p95 + pad;
+  }
+
+  const binW = (maxV - minV) / nBins;
+  const bins = new Array(nBins).fill(0);
+  for (const v of values) {
+    const idx = Math.floor((v - minV) / binW);
+    if (idx >= 0 && idx < nBins) bins[idx]++;
+  }
+  const maxBin = Math.max(...bins, 1);
+
+  const offX = 5, offY = 16, plotW = w - 10, plotH = h - 28;
+  const bw = plotW / nBins;
+
+  ctx.fillStyle = color; ctx.globalAlpha = 0.55;
+  for (let i = 0; i < nBins; i++) {
+    const bh = (bins[i] / maxBin) * plotH;
+    ctx.fillRect(offX + i*bw + 0.5, offY + plotH - bh, bw - 1, bh);
+  }
+  ctx.globalAlpha = 1;
+
+  if (showGaussian && d) {
+    const sigma = 1 / Math.sqrt(d);
+    ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let px = 0; px < plotW; px++) {
+      const xv = minV + (px/plotW) * (maxV - minV);
+      const gv = Math.exp(-0.5*(xv/sigma)**2) / (sigma*Math.sqrt(2*Math.PI));
+      const normed = gv * values.length * binW;
+      const py = offY + plotH - (normed/maxBin)*plotH;
+      if (px === 0) ctx.moveTo(offX+px, py); else ctx.lineTo(offX+px, py);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#ff6b6b'; ctx.font = '8px sans-serif';
+    ctx.fillText('N(0,1/d)', offX + plotW - 45, offY + 9);
+  }
+
+  const zx = offX + (-minV/(maxV-minV))*plotW;
+  if (zx > offX && zx < offX + plotW) {
+    ctx.strokeStyle = '#444'; ctx.lineWidth = 0.5;
+    ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(zx, offY); ctx.lineTo(zx, offY+plotH); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.fillStyle = '#555'; ctx.font = '8px sans-serif';
+  ctx.fillText(minV.toFixed(2), offX, h - 1);
+  ctx.fillText(maxV.toFixed(2), offX + plotW - 25, h - 1);
+  if (zx > offX + 20 && zx < offX + plotW - 20) ctx.fillText('0', zx-3, h-1);
+
+  ctx.fillStyle = color; ctx.font = 'bold 10px sans-serif';
+  ctx.fillText(title, offX, 11);
+}
+
+// ── Main ──
+const DIMS = [2, 4, 8, 16, 32, 64, 128, 256];
+
+function renderAll() {
+  const n = parseInt(document.getElementById('nSamples').value);
+  const biasType = document.getElementById('biasType').value;
+  document.getElementById('nSamplesVal').textContent = n;
+
+  const grid = document.getElementById('mainGrid');
+  grid.innerHTML = '';
+
+  for (const d of DIMS) {
+    const fixedD = makeFixedD(d);
+    const R = makeRandomR(d);
+
+    const inC0=[], inC1=[], inFirst=[];
+    const rC0=[], rC1=[], rFirst=[];
+    const hdC0=[], hdC1=[], hdFirst=[];
+
+    for (let s = 0; s < n; s++) {
+      const x = generateBiasedVector(d, biasType);
+      inC0.push(x[0]);
+      inC1.push(d >= 2 ? x[1] : 0);
+      inFirst.push(x[0]);
+
+      // R
+      const rx = applyMatrix(R, x);
+      rC0.push(rx[0]);
+      rC1.push(d >= 2 ? rx[1] : 0);
+      rFirst.push(rx[0]);
+
+      // HD
+      const dx = x.map((v,i) => v * fixedD[i]);
+      const hdx = fwht(dx);
+      hdC0.push(hdx[0]);
+      hdC1.push(d >= 2 ? hdx[1] : 0);
+      hdFirst.push(hdx[0]);
+    }
+
+    const sigma = 1 / Math.sqrt(d);
+    const ksR = ksDistance(rFirst, 0, sigma);
+    const ksHD = ksDistance(hdFirst, 0, sigma);
+
+    let vTextHD, vClassHD;
+    if (ksHD > 0.04) { vTextHD = 'NOT OK'; vClassHD = 'bad'; }
+    else if (ksHD > 0.015) { vTextHD = 'borderline'; vClassHD = 'warn'; }
+    else { vTextHD = 'OK'; vClassHD = 'good'; }
+
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.innerHTML = `
+      <h2>d = ${d} <span style="font-size:0.8rem;color:#888;font-weight:normal;">&mdash; 합산 항 ${d}개</span></h2>
+      <div class="meta">
+        1/&radic;d = <span class="val">${(1/Math.sqrt(d)).toFixed(3)}</span> &nbsp;|&nbsp;
+        KS<sub>R</sub> = <span class="val">${ksR.toFixed(4)}</span> &nbsp;|&nbsp;
+        KS<sub>HD</sub> = <span class="val">${ksHD.toFixed(4)}</span> &nbsp;|&nbsp;
+        HD: <span class="verdict ${vClassHD}">${vTextHD}</span>
+      </div>
+      <div class="six-grid">
+        <div class="six-item">
+          <canvas id="inSc_${d}" width="185" height="185"></canvas>
+          <div class="qlabel">입력 (x[0], x[1]) 투영</div>
+        </div>
+        <div class="six-item">
+          <canvas id="rSc_${d}" width="185" height="185"></canvas>
+          <div class="qlabel">R출력 (x&#771;<sub>R</sub>[0], x&#771;<sub>R</sub>[1]) 투영</div>
+        </div>
+        <div class="six-item">
+          <canvas id="hdSc_${d}" width="185" height="185"></canvas>
+          <div class="qlabel">HD출력 (x&#771;<sub>HD</sub>[0], x&#771;<sub>HD</sub>[1]) 투영</div>
+        </div>
+        <div class="six-item">
+          <canvas id="inHist_${d}" width="185" height="120"></canvas>
+          <div class="qlabel">x[0] 히스토그램</div>
+        </div>
+        <div class="six-item">
+          <canvas id="rHist_${d}" width="185" height="120"></canvas>
+          <div class="qlabel">x&#771;<sub>R</sub>[0] 히스토그램</div>
+        </div>
+        <div class="six-item">
+          <canvas id="hdHist_${d}" width="185" height="120"></canvas>
+          <div class="qlabel">x&#771;<sub>HD</sub>[0] 히스토그램</div>
+        </div>
+      </div>
+    `;
+    grid.appendChild(cell);
+
+    setTimeout(() => {
+      drawScatter(document.getElementById(`inSc_${d}`), inC0, inC1, '#4fc3f7', '입력 x');
+      drawScatter(document.getElementById(`rSc_${d}`), rC0, rC1, '#ff6b6b', 'Rx (Random)');
+      drawScatter(document.getElementById(`hdSc_${d}`), hdC0, hdC1, '#ffd700', 'HDx (FWHT)');
+      drawHist(document.getElementById(`inHist_${d}`), inFirst, '#4fc3f7', 'x[0]', false);
+      drawHist(document.getElementById(`rHist_${d}`), rFirst, '#ff6b6b', 'x\u0303\u1d63[0]', true, d);
+      drawHist(document.getElementById(`hdHist_${d}`), hdFirst, '#ffd700', 'x\u0303\u2095\u2091[0]', true, d);
+    }, 0);
+  }
+}
+
+document.getElementById('nSamples').addEventListener('input', () => {
+  document.getElementById('nSamplesVal').textContent = document.getElementById('nSamples').value;
+});
+document.getElementById('nSamples').addEventListener('change', renderAll);
+document.getElementById('biasType').addEventListener('change', renderAll);
+document.getElementById('btnRegen').addEventListener('click', renderAll);
+
+renderAll();
+</script>
+</body>
+</html>
