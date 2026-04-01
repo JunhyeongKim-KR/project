@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCIe Topology — AMD Renoir/Cezanne System</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',-apple-system,sans-serif;background:#080c24;color:#e0e0e0;min-height:100vh;padding:24px}
+h1{text-align:center;font-size:26px;margin-bottom:4px;background:linear-gradient(135deg,#00d2ff,#7b2ff7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:#666;font-size:13px;margin-bottom:20px}
+.legend{display:flex;justify-content:center;gap:20px;margin-bottom:20px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:12px}
+.legend-color{width:14px;height:14px;border-radius:3px}
+
+.main{display:flex;gap:20px;max-width:1500px;margin:0 auto}
+.svg-wrap{flex:1;min-width:0}
+.side{width:380px;flex-shrink:0;display:flex;flex-direction:column;gap:16px;position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto}
+.card{background:#0e1338;border-radius:10px;border:1px solid #1a2050;padding:18px}
+.card h3{font-size:14px;margin-bottom:10px}
+.card h3.cyan{color:#00d2ff}
+.card h3.purple{color:#b388ff}
+.card h3.yellow{color:#ffd54f}
+
+.tree-svg{width:100%;background:#0c1030;border-radius:10px;border:1px solid #1a2050}
+.node{cursor:pointer}
+.node rect{rx:6;ry:6;stroke-width:1.8;transition:filter .15s,stroke-width .15s}
+.node:hover rect{filter:brightness(1.4) drop-shadow(0 0 6px rgba(255,255,255,.25));stroke-width:2.5}
+.node.selected rect{stroke-width:3;filter:drop-shadow(0 0 10px rgba(0,210,255,.5))}
+.node text{fill:#fff;font-size:11px;text-anchor:middle;pointer-events:none}
+.node .lbl{font-weight:600;font-size:11.5px}
+.node .sub{font-size:9.5px;fill:#aaa}
+.node .bdf{font-size:9px;fill:#777;font-family:'SF Mono',monospace}
+.link{stroke:#252e60;stroke-width:1.5;fill:none}
+.link.active{stroke:#00d2ff;stroke-width:2.5;filter:drop-shadow(0 0 3px #00d2ff)}
+.bus-lbl{font-size:9px;fill:#444;font-family:monospace}
+.bus-region{fill:none;stroke:#ffffff0a;stroke-dasharray:5,3;rx:8}
+.bus-region-label{font-size:10px;fill:#333;font-family:monospace}
+
+.c-cpu{fill:#1a0e1e;stroke:#e94560}
+.c-host{fill:#0e1a28;stroke:#00d2ff}
+.c-bridge{fill:#0e1e12;stroke:#4caf50}
+.c-ep{fill:#1e0e24;stroke:#ce93d8}
+.c-rciep{fill:#1e1e0e;stroke:#ffd54f}
+.c-misc{fill:#141428;stroke:#666}
+
+.info-name{font-size:18px;font-weight:700;margin-bottom:4px}
+.badge{font-size:11px;padding:2px 10px;border-radius:12px;display:inline-block;margin-bottom:10px;font-weight:600}
+.b-cpu{background:#e94560;color:#fff}
+.b-host{background:#00d2ff;color:#000}
+.b-bridge{background:#4caf50;color:#fff}
+.b-ep{background:#ce93d8;color:#000}
+.b-rciep{background:#ffd54f;color:#000}
+.b-misc{background:#666;color:#fff}
+.info-tbl{width:100%;border-collapse:collapse}
+.info-tbl td{padding:5px 0;font-size:12px;border-bottom:1px solid #1a2050;vertical-align:top}
+.info-tbl td:first-child{color:#666;width:90px;white-space:nowrap}
+.info-tbl td:last-child{color:#bbb;font-family:monospace;word-break:break-all}
+
+.lspci-box{font-family:'SF Mono','Fira Code',monospace;font-size:10px;line-height:1.55;white-space:pre;overflow-x:auto;max-height:420px;overflow-y:auto;color:#555}
+.lspci-box .hl{color:#fff;background:rgba(0,210,255,.12);border-radius:2px;padding:0 2px}
+.misc-list{font-size:11px;line-height:1.7;color:#888;font-family:monospace}
+.misc-list .m-bdf{color:#666;display:inline-block;width:52px}
+.misc-list .m-type{color:#ffd54f;font-size:10px}
+
+@media(max-width:1100px){.main{flex-direction:column}.side{width:100%;position:static;max-height:none}}
+</style>
+</head>
+<body>
+<h1>PCIe Fabric Topology — AMD Renoir/Cezanne</h1>
+<p class="subtitle">lspci + sysfs tree 기반 시각화 — 노드 클릭 시 상세 정보 표시</p>
+<div class="legend">
+  <div class="legend-item"><div class="legend-color" style="background:#e94560"></div>CPU</div>
+  <div class="legend-item"><div class="legend-color" style="background:#00d2ff"></div>Host Bridge (RC)</div>
+  <div class="legend-item"><div class="legend-color" style="background:#4caf50"></div>PCI Bridge</div>
+  <div class="legend-item"><div class="legend-color" style="background:#ce93d8"></div>Endpoint</div>
+  <div class="legend-item"><div class="legend-color" style="background:#ffd54f"></div>Internal EP</div>
+</div>
+
+<div class="main">
+<div class="svg-wrap">
+  <svg class="tree-svg" viewBox="0 0 1380 580" preserveAspectRatio="xMidYMid meet"></svg>
+</div>
+<div class="side">
+  <div class="card" id="info-card">
+    <h3 class="cyan">Device Info</h3>
+    <div id="info-content"><p style="color:#555;font-size:13px">왼쪽 토폴로지에서 노드를 클릭하세요.</p></div>
+  </div>
+  <div class="card">
+    <h3 class="purple">$ lspci</h3>
+    <div class="lspci-box" id="lspci-out"></div>
+  </div>
+  <div class="card">
+    <h3 class="yellow">Bus 0 — Non-Bridge Devices</h3>
+    <div class="misc-list" id="misc-list"></div>
+  </div>
+</div>
+</div>
+
+<script>
+// ─── Device Data ───
+const D = [
+  // CPU
+  {id:'cpu',lbl:'AMD Ryzen',sub:'Cezanne APU',bdf:'',type:'cpu',
+   x:580,y:28,w:140,h:42,
+   info:{d:'AMD Ryzen 5000 Series (Cezanne)',cls:'',vd:'1022',role:'CPU — PCIe Root Complex 내장',note:'Infinity Fabric으로 내부 연결, PCIe Gen3 지원'}},
+
+  // Root Complex
+  {id:'rc',lbl:'Root Complex',sub:'Host Bridge',bdf:'00:00.0',type:'host',
+   x:580,y:90,w:190,h:48,
+   info:{d:'Renoir/Cezanne Root Complex',cls:'0600',vd:'1022:1630',role:'CPU ↔ PCIe fabric 연결, Bus 0 시작점',note:'lspci: "Host bridge". DRAM controller + PCIe root 역할'}},
+
+  // ═══ GPU BRANCH (left) ═══
+  {id:'rp0',lbl:'PCIe GPP Bridge',sub:'Root Port → Bus 01',bdf:'00:01.1',type:'bridge',
+   x:130,y:185,w:150,h:44,
+   info:{d:'Renoir PCIe GPP Bridge',cls:'0604',vd:'1022:1632',role:'Bus 00 → Bus 01 PCI Bridge',note:'GPU용 Root Port. Type 1 Header. Secondary Bus=01'}},
+
+  {id:'navi_usp',lbl:'Navi 10 XL',sub:'Switch Upstream Port',bdf:'01:00.0',type:'bridge',
+   x:130,y:268,w:150,h:44,
+   info:{d:'Navi 10 XL Upstream Port of PCI Express Switch (rev c0)',cls:'0604',vd:'1002:1478',role:'GPU 내장 PCIe Switch의 Upstream Port',note:'GPU 칩 내부에 Switch가 내장됨. GPU+Audio를 하나의 PCIe 링크로 공유'}},
+
+  {id:'navi_dsp',lbl:'Navi 10 XL',sub:'Switch Downstream Port',bdf:'02:00.0',type:'bridge',
+   x:130,y:350,w:150,h:44,
+   info:{d:'Navi 10 XL Downstream Port of PCI Express Switch',cls:'0604',vd:'1002:1479',role:'Switch DSP → Bus 03 (GPU + Audio)',note:'이 DSP 아래에 VGA와 HDMI Audio가 multifunction으로 존재'}},
+
+  {id:'gpu',lbl:'Radeon RX 6800',sub:'VGA Controller',bdf:'03:00.0',type:'ep',
+   x:85,y:438,w:130,h:40,
+   info:{d:'Navi 21 [Radeon RX 6800/6800 XT / 6900 XT] (rev c0)',cls:'0300',vd:'1002:73BF',role:'외장 GPU — 3D 그래픽 렌더링',note:'Bus 03, Dev 0, Func 0. PCIe Switch를 통해 연결'}},
+
+  {id:'gpu_aud',lbl:'HDMI Audio',sub:'Navi 21',bdf:'03:00.1',type:'ep',
+   x:210,y:438,w:110,h:40,
+   info:{d:'Navi 21 HDMI Audio [Radeon RX 6800/6800 XT / 6900 XT]',cls:'0403',vd:'1002:AB28',role:'GPU HDMI/DP 오디오 출력',note:'Bus 03, Dev 0, Func 1. GPU와 같은 디바이스의 다른 Function'}},
+
+  // ═══ CHIPSET / MATISSE BRANCH (center) ═══
+  {id:'rp1',lbl:'PCIe GPP Bridge',sub:'Root Port → Bus 04',bdf:'00:01.2',type:'bridge',
+   x:610,y:185,w:150,h:44,
+   info:{d:'Renoir/Cezanne PCIe GPP Bridge',cls:'0604',vd:'1022:1634',role:'Bus 00 → Bus 04 PCI Bridge',note:'칩셋(Matisse) 연결용 Root Port. Secondary Bus=04, Subordinate Bus=0B'}},
+
+  {id:'mat_usp',lbl:'Matisse Switch',sub:'Upstream Port',bdf:'04:00.0',type:'bridge',
+   x:610,y:268,w:160,h:44,
+   info:{d:'Matisse Switch Upstream',cls:'0604',vd:'1022:57AD',role:'Matisse 칩셋 내부 PCIe Switch USP',note:'이 Switch 아래로 6개 DSP가 NVMe, Wi-Fi, Ethernet, USB, SATA 등을 연결'}},
+
+  // Matisse DSPs
+  {id:'md0',lbl:'Matisse DSP',sub:'→ Bus 06',bdf:'05:01.0',type:'bridge',
+   x:340,y:350,w:110,h:42,
+   info:{d:'Matisse PCIe GPP Bridge',cls:'0604',vd:'1022:57A3',role:'Switch DSP → Bus 06 (NVMe SSD)',note:'Secondary Bus=06'}},
+  {id:'md1',lbl:'Matisse DSP',sub:'→ Bus 07',bdf:'05:04.0',type:'bridge',
+   x:460,y:350,w:110,h:42,
+   info:{d:'Matisse PCIe GPP Bridge',cls:'0604',vd:'1022:57A3',role:'Switch DSP → Bus 07 (Wi-Fi)',note:'Secondary Bus=07'}},
+  {id:'md2',lbl:'Matisse DSP',sub:'→ Bus 08',bdf:'05:05.0',type:'bridge',
+   x:580,y:350,w:110,h:42,
+   info:{d:'Matisse PCIe GPP Bridge',cls:'0604',vd:'1022:57A3',role:'Switch DSP → Bus 08 (Ethernet)',note:'Secondary Bus=08'}},
+  {id:'md3',lbl:'Matisse DSP',sub:'→ Bus 09',bdf:'05:08.0',type:'bridge',
+   x:700,y:350,w:110,h:42,
+   info:{d:'Matisse PCIe GPP Bridge',cls:'0604',vd:'1022:57A4',role:'Switch DSP → Bus 09 (SPP + USB ×2)',note:'Secondary Bus=09. 하위에 3개 Function'}},
+  {id:'md4',lbl:'Matisse DSP',sub:'→ Bus 0A',bdf:'05:09.0',type:'bridge',
+   x:820,y:350,w:110,h:42,
+   info:{d:'Matisse PCIe GPP Bridge',cls:'0604',vd:'1022:57A4',role:'Switch DSP → Bus 0A (SATA)',note:'Secondary Bus=0A'}},
+  {id:'md5',lbl:'Matisse DSP',sub:'→ Bus 0B',bdf:'05:0a.0',type:'bridge',
+   x:930,y:350,w:110,h:42,
+   info:{d:'Matisse PCIe GPP Bridge',cls:'0604',vd:'1022:57A4',role:'Switch DSP → Bus 0B (SATA)',note:'Secondary Bus=0B'}},
+
+  // Matisse Endpoints
+  {id:'nvme',lbl:'Samsung NVMe',sub:'SM981/PM981',bdf:'06:00.0',type:'ep',
+   x:340,y:438,w:115,h:40,
+   info:{d:'Samsung NVMe SSD Controller SM981/PM981/PM983',cls:'0108',vd:'144D:A808',role:'NVMe SSD 스토리지',note:'Bus 06. Matisse Switch DSP 05:01.0 뒤에 연결'}},
+  {id:'wifi',lbl:'Intel Wi-Fi',sub:'AC 9260',bdf:'07:00.0',type:'ep',
+   x:460,y:438,w:115,h:40,
+   info:{d:'Intel Wireless-AC 9260 (rev 29)',cls:'0280',vd:'8086:2526',role:'Wi-Fi 무선 네트워크',note:'Bus 07. 802.11ac, Bluetooth 5.0 지원'}},
+  {id:'eth',lbl:'Realtek GbE',sub:'RTL8111',bdf:'08:00.0',type:'ep',
+   x:580,y:438,w:115,h:40,
+   info:{d:'RTL8111/8168/8411 PCI Express Gigabit Ethernet Controller (rev 26)',cls:'0200',vd:'10EC:8168',role:'기가빗 이더넷',note:'Bus 08. 유선 네트워크 컨트롤러'}},
+
+  // Bus 09 — 3 functions (stacked)
+  {id:'spp',lbl:'Reserved SPP',sub:'Starship/Matisse',bdf:'09:00.0',type:'ep',
+   x:700,y:432,w:115,h:34,
+   info:{d:'Starship/Matisse Reserved SPP',cls:'1300',vd:'1022:1485',role:'Non-Essential Instrumentation (디버그/테스트)',note:'Bus 09, Func 0. 실제 기능보다는 디버그 인터페이스'}},
+  {id:'usb09_1',lbl:'USB 3.0',sub:'Matisse',bdf:'09:00.1',type:'ep',
+   x:700,y:470,w:115,h:34,
+   info:{d:'Matisse USB 3.0 Host Controller',cls:'0C03',vd:'1022:149C',role:'USB 3.0 호스트 컨트롤러',note:'Bus 09, Func 1. xHCI USB 컨트롤러'}},
+  {id:'usb09_3',lbl:'USB 3.0',sub:'Matisse',bdf:'09:00.3',type:'ep',
+   x:700,y:508,w:115,h:34,
+   info:{d:'Matisse USB 3.0 Host Controller',cls:'0C03',vd:'1022:149C',role:'USB 3.0 호스트 컨트롤러 (두 번째)',note:'Bus 09, Func 3. 두 번째 xHCI 컨트롤러'}},
+
+  {id:'sata_a',lbl:'SATA AHCI',sub:'FCH',bdf:'0a:00.0',type:'ep',
+   x:820,y:438,w:115,h:40,
+   info:{d:'FCH SATA Controller [AHCI mode] (rev 51)',cls:'0106',vd:'1022:7901',role:'SATA 스토리지 컨트롤러',note:'Bus 0A. Matisse 칩셋 내장 SATA'}},
+  {id:'sata_b',lbl:'SATA AHCI',sub:'FCH',bdf:'0b:00.0',type:'ep',
+   x:930,y:438,w:115,h:40,
+   info:{d:'FCH SATA Controller [AHCI mode] (rev 51)',cls:'0106',vd:'1022:7901',role:'SATA 스토리지 컨트롤러 (두 번째)',note:'Bus 0B. 두 번째 SATA 포트 그룹'}},
+
+  // ═══ INTERNAL BRANCH (right) ═══
+  {id:'rp_i1',lbl:'Internal GPP',sub:'Bridge → Bus 0C',bdf:'00:08.1',type:'bridge',
+   x:1120,y:185,w:148,h:44,
+   info:{d:'Renoir Internal PCIe GPP Bridge to Bus',cls:'0604',vd:'1022:1635',role:'CPU 내부 → Bus 0C 연결',note:'Internal bridge. APU 내장 디바이스(Audio, PSP, USB)를 PCIe config space에 노출'}},
+  {id:'rp_i2',lbl:'Internal GPP',sub:'Bridge → Bus 0D',bdf:'00:08.2',type:'bridge',
+   x:1300,y:185,w:148,h:44,
+   info:{d:'Renoir Internal PCIe GPP Bridge to Bus',cls:'0604',vd:'1022:1635',role:'CPU 내부 → Bus 0D 연결',note:'Internal bridge. SATA 컨트롤러를 Bus 0D에 연결'}},
+
+  // Bus 0C devices (2×3 grid)
+  {id:'c_aud1',lbl:'Radeon HD Audio',sub:'Renoir iGPU',bdf:'0c:00.1',type:'rciep',
+   x:1060,y:280,w:128,h:34,
+   info:{d:'Renoir Radeon High Definition Audio Controller',cls:'0403',vd:'1002:1637',role:'내장 GPU(Renoir) 오디오 출력',note:'Bus 0C, Func 1. APU 내장 그래픽의 HDMI/DP 오디오'}},
+  {id:'c_psp',lbl:'PSP',sub:'Security Processor',bdf:'0c:00.2',type:'rciep',
+   x:1060,y:320,w:128,h:34,
+   info:{d:'Family 17h Platform Security Processor',cls:'1080',vd:'1022:15DF',role:'AMD PSP — 보안 부트, TPM, 암호화',note:'Bus 0C, Func 2. ARM TrustZone 기반 보안 프로세서'}},
+  {id:'c_usb1',lbl:'USB 3.1',sub:'Renoir',bdf:'0c:00.3',type:'rciep',
+   x:1060,y:360,w:128,h:34,
+   info:{d:'Renoir/Cezanne USB 3.1',cls:'0C03',vd:'1022:1639',role:'USB 3.1 호스트 컨트롤러 (APU 내장)',note:'Bus 0C, Func 3. APU 다이 내부 xHCI'}},
+  {id:'c_usb2',lbl:'USB 3.1',sub:'Renoir',bdf:'0c:00.4',type:'rciep',
+   x:1190,y:280,w:128,h:34,
+   info:{d:'Renoir/Cezanne USB 3.1',cls:'0C03',vd:'1022:1639',role:'USB 3.1 호스트 컨트롤러 (두 번째)',note:'Bus 0C, Func 4. 두 번째 APU 내장 xHCI'}},
+  {id:'c_aud2',lbl:'HD Audio',sub:'Family 17h',bdf:'0c:00.6',type:'rciep',
+   x:1190,y:320,w:128,h:34,
+   info:{d:'Family 17h HD Audio Controller',cls:'0403',vd:'1022:15E3',role:'APU 내장 HD Audio (ALC 코덱)',note:'Bus 0C, Func 6. 스피커/마이크 등 일반 오디오'}},
+  {id:'c_dummy',lbl:'Dummy Func',sub:'Zeppelin/Raven',bdf:'0c:00.0',type:'rciep',
+   x:1190,y:360,w:128,h:34,
+   info:{d:'Zeppelin/Raven/Raven2 PCIe Dummy Function (rev c9)',cls:'1300',vd:'1022:145A',role:'Non-Essential Instrumentation (Placeholder)',note:'Bus 0C, Func 0. AMD 내부 디버그용 Dummy Function'}},
+
+  // Bus 0D
+  {id:'sata_d',lbl:'SATA AHCI',sub:'FCH (rev 81)',bdf:'0d:00.0',type:'ep',
+   x:1300,y:280,w:128,h:40,
+   info:{d:'FCH SATA Controller [AHCI mode] (rev 81)',cls:'0106',vd:'1022:7904',role:'SATA 스토리지 컨트롤러 (APU 내장)',note:'Bus 0D. Internal bridge를 통해 연결된 APU 내장 SATA'}},
+];
+
+const L = [
+  ['cpu','rc'],
+  ['rc','rp0'],['rc','rp1'],['rc','rp_i1'],['rc','rp_i2'],
+  ['rp0','navi_usp'],['navi_usp','navi_dsp'],['navi_dsp','gpu'],['navi_dsp','gpu_aud'],
+  ['rp1','mat_usp'],
+  ['mat_usp','md0'],['mat_usp','md1'],['mat_usp','md2'],['mat_usp','md3'],['mat_usp','md4'],['mat_usp','md5'],
+  ['md0','nvme'],['md1','wifi'],['md2','eth'],
+  ['md3','spp'],['md3','usb09_1'],['md3','usb09_3'],
+  ['md4','sata_a'],['md5','sata_b'],
+  ['rp_i1','c_aud1'],['rp_i1','c_psp'],['rp_i1','c_usb1'],['rp_i1','c_usb2'],['rp_i1','c_aud2'],['rp_i1','c_dummy'],
+  ['rp_i2','sata_d'],
+];
+
+// Bus labels on links
+const busLabels = {
+  'rp0-navi_usp':'01','navi_usp-navi_dsp':'02','navi_dsp-gpu':'03','navi_dsp-gpu_aud':'03',
+  'rp1-mat_usp':'04',
+  'mat_usp-md0':'05','mat_usp-md1':'05','mat_usp-md2':'05','mat_usp-md3':'05','mat_usp-md4':'05','mat_usp-md5':'05',
+  'md0-nvme':'06','md1-wifi':'07','md2-eth':'08','md3-spp':'09','md3-usb09_1':'09','md3-usb09_3':'09',
+  'md4-sata_a':'0A','md5-sata_b':'0B',
+  'rp_i1-c_aud1':'0C','rp_i1-c_psp':'0C','rp_i1-c_usb1':'0C','rp_i1-c_usb2':'0C','rp_i1-c_aud2':'0C','rp_i1-c_dummy':'0C',
+  'rp_i2-sata_d':'0D',
+};
+
+// ─── Build SVG ───
+const svg=document.querySelector('.tree-svg'), ns='http://www.w3.org/2000/svg';
+function el(t,a={}){const e=document.createElementNS(ns,t);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);return e}
+const dm={}; D.forEach(d=>dm[d.id]=d);
+
+// Bus 0 region
+svg.appendChild(el('rect',{class:'bus-region',x:40,y:75,width:1330,height:170}));
+const bl=el('text',{class:'bus-region-label',x:48,y:88});bl.textContent='Bus 00';svg.appendChild(bl);
+
+// Draw links
+const linkEls={};
+L.forEach(([fid,tid])=>{
+  const f=dm[fid],t=dm[tid];
+  const x1=f.x,y1=f.y+f.h,x2=t.x,y2=t.y;
+  const my=(y1+y2)/2;
+  const p=el('path',{class:'link',d:`M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`,'data-f':fid,'data-t':tid});
+  svg.appendChild(p);
+  linkEls[fid+'-'+tid]=p;
+
+  // Bus label (only show once per unique bus, at leftmost link)
+  const key=fid+'-'+tid;
+  const bus=busLabels[key];
+  if(bus){
+    const shown=document.querySelector(`.bus-lbl[data-bus="${bus}-${fid}"]`);
+    if(!shown){
+      const lx=(x1+x2)/2+(x1===x2?14:0);
+      const ly=my-3;
+      const bt=el('text',{class:'bus-lbl',x:lx,y:ly,'data-bus':bus+'-'+fid});
+      bt.textContent=bus;
+      svg.appendChild(bt);
+    }
+  }
+});
+
+// Draw nodes
+const nodeEls={};
+D.forEach(d=>{
+  const g=el('g',{class:'node',transform:`translate(${d.x-d.w/2},${d.y})`});
+  g.dataset.id=d.id;
+  const cc={cpu:'c-cpu',host:'c-host',bridge:'c-bridge',ep:'c-ep',rciep:'c-rciep',misc:'c-misc'}[d.type];
+  g.appendChild(el('rect',{class:cc,width:d.w,height:d.h}));
+  const t1=el('text',{class:'lbl',x:d.w/2,y:d.h*.42});t1.textContent=d.lbl;g.appendChild(t1);
+  const t2=el('text',{class:'sub',x:d.w/2,y:d.h*.75});t2.textContent=d.sub;g.appendChild(t2);
+  if(d.bdf){const t3=el('text',{class:'bdf',x:d.w/2,y:d.h+12});t3.textContent=d.bdf;g.appendChild(t3)}
+  g.addEventListener('click',()=>select(d));
+  svg.appendChild(g);
+  nodeEls[d.id]=g;
+});
+
+// ─── Selection ───
+let selId=null;
+function select(d){
+  Object.values(linkEls).forEach(l=>l.classList.remove('active'));
+  document.querySelectorAll('.node.selected').forEach(n=>n.classList.remove('selected'));
+  selId=d.id;
+  nodeEls[d.id].classList.add('selected');
+  // highlight connected links
+  L.forEach(([f,t])=>{
+    if(f===d.id||t===d.id) linkEls[f+'-'+t]?.classList.add('active');
+  });
+  // ancestors
+  function up(id){
+    L.forEach(([f,t])=>{if(t===id){linkEls[f+'-'+t]?.classList.add('active');up(f)}});
+  }
+  up(d.id);
+
+  const bl={cpu:'b-cpu',host:'b-host',bridge:'b-bridge',ep:'b-ep',rciep:'b-rciep',misc:'b-misc'}[d.type];
+  const tl={cpu:'CPU',host:'Host Bridge',bridge:'PCI Bridge',ep:'Endpoint',rciep:'Internal EP',misc:'Misc'}[d.type];
+  let h=`<div class="info-name">${d.lbl}</div><div class="badge ${bl}">${tl}</div><table class="info-tbl">`;
+  if(d.bdf)h+=`<tr><td>BDF</td><td>${d.bdf}</td></tr>`;
+  if(d.info.cls)h+=`<tr><td>Class</td><td>${d.info.cls}</td></tr>`;
+  if(d.info.vd)h+=`<tr><td>Vendor:Dev</td><td>${d.info.vd}</td></tr>`;
+  h+=`<tr><td>Description</td><td style="color:#ddd">${d.info.d}</td></tr>`;
+  h+=`<tr><td>역할</td><td>${d.info.role}</td></tr>`;
+  h+=`<tr><td>비고</td><td style="color:#777">${d.info.note}</td></tr></table>`;
+  document.getElementById('info-content').innerHTML=h;
+  renderLspci(d.bdf);
+}
+
+// ─── lspci output ───
+const lspciLines=[
+  '00:00.0 Host bridge: AMD Renoir/Cezanne Root Complex',
+  '00:00.2 IOMMU: AMD Renoir/Cezanne IOMMU',
+  '00:01.0 Host bridge: AMD Renoir PCIe Dummy Host Bridge',
+  '00:01.1 PCI bridge: AMD Renoir PCIe GPP Bridge',
+  '00:01.2 PCI bridge: AMD Renoir/Cezanne PCIe GPP Bridge',
+  '00:02.0 Host bridge: AMD Renoir PCIe Dummy Host Bridge',
+  '00:08.0 Host bridge: AMD Renoir PCIe Dummy Host Bridge',
+  '00:08.1 PCI bridge: AMD Renoir Internal PCIe GPP Bridge',
+  '00:08.2 PCI bridge: AMD Renoir Internal PCIe GPP Bridge',
+  '00:14.0 SMBus: AMD FCH SMBus Controller',
+  '00:14.3 ISA bridge: AMD FCH LPC Bridge',
+  '00:18.0 Host bridge: AMD Cezanne Data Fabric; Func 0',
+  '00:18.1 Host bridge: AMD Cezanne Data Fabric; Func 1',
+  '00:18.2 Host bridge: AMD Cezanne Data Fabric; Func 2',
+  '00:18.3 Host bridge: AMD Cezanne Data Fabric; Func 3',
+  '00:18.4 Host bridge: AMD Cezanne Data Fabric; Func 4',
+  '00:18.5 Host bridge: AMD Cezanne Data Fabric; Func 5',
+  '00:18.6 Host bridge: AMD Cezanne Data Fabric; Func 6',
+  '00:18.7 Host bridge: AMD Cezanne Data Fabric; Func 7',
+  '01:00.0 PCI bridge: Navi 10 XL Switch Upstream Port',
+  '02:00.0 PCI bridge: Navi 10 XL Switch Downstream Port',
+  '03:00.0 VGA: Navi 21 [Radeon RX 6800/6800 XT/6900 XT]',
+  '03:00.1 Audio: Navi 21 HDMI Audio',
+  '04:00.0 PCI bridge: AMD Matisse Switch Upstream',
+  '05:01.0 PCI bridge: AMD Matisse PCIe GPP Bridge',
+  '05:04.0 PCI bridge: AMD Matisse PCIe GPP Bridge',
+  '05:05.0 PCI bridge: AMD Matisse PCIe GPP Bridge',
+  '05:08.0 PCI bridge: AMD Matisse PCIe GPP Bridge',
+  '05:09.0 PCI bridge: AMD Matisse PCIe GPP Bridge',
+  '05:0a.0 PCI bridge: AMD Matisse PCIe GPP Bridge',
+  '06:00.0 NVMe: Samsung SM981/PM981/PM983',
+  '07:00.0 Network: Intel Wireless-AC 9260',
+  '08:00.0 Ethernet: Realtek RTL8111/8168/8411 GbE',
+  '09:00.0 Non-Essential: AMD Starship/Matisse SPP',
+  '09:00.1 USB: AMD Matisse USB 3.0 Host Controller',
+  '09:00.3 USB: AMD Matisse USB 3.0 Host Controller',
+  '0a:00.0 SATA: AMD FCH SATA [AHCI] (rev 51)',
+  '0b:00.0 SATA: AMD FCH SATA [AHCI] (rev 51)',
+  '0c:00.0 Non-Essential: AMD Zeppelin/Raven Dummy',
+  '0c:00.1 Audio: AMD Renoir Radeon HD Audio',
+  '0c:00.2 Encryption: AMD Family 17h PSP',
+  '0c:00.3 USB: AMD Renoir/Cezanne USB 3.1',
+  '0c:00.4 USB: AMD Renoir/Cezanne USB 3.1',
+  '0c:00.6 Audio: AMD Family 17h HD Audio',
+  '0d:00.0 SATA: AMD FCH SATA [AHCI] (rev 81)',
+];
+
+function renderLspci(bdf){
+  let html='';
+  lspciLines.forEach(line=>{
+    const lb=line.substring(0,7);
+    const esc=line.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    if(bdf && lb===bdf) html+=`<span class="hl">${esc}</span>\n`;
+    else html+=esc+'\n';
+  });
+  document.getElementById('lspci-out').innerHTML=html;
+}
+renderLspci('');
+
+// ─── Bus 0 Misc ───
+const miscDevs=[
+  {bdf:'00:00.2',type:'IOMMU',name:'Renoir/Cezanne IOMMU'},
+  {bdf:'00:01.0',type:'Host bridge',name:'Dummy Host Bridge (placeholder)'},
+  {bdf:'00:02.0',type:'Host bridge',name:'Dummy Host Bridge (placeholder)'},
+  {bdf:'00:08.0',type:'Host bridge',name:'Dummy Host Bridge (placeholder)'},
+  {bdf:'00:14.0',type:'SMBus',name:'FCH SMBus Controller'},
+  {bdf:'00:14.3',type:'ISA bridge',name:'FCH LPC Bridge'},
+  {bdf:'00:18.0-7',type:'Host bridge ×8',name:'Cezanne Data Fabric (Infinity Fabric config)'},
+];
+let mh='';
+miscDevs.forEach(m=>{
+  mh+=`<div><span class="m-bdf">${m.bdf}</span> <span class="m-type">${m.type}</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${m.name}</div>`;
+});
+mh+='<br><div style="color:#555;font-size:10px">※ Dummy Host Bridge: AMD 아키텍처에서 config space placeholder로 존재.<br>※ Data Fabric: Infinity Fabric의 PCI config space 노출 (실제 PCIe 링크 아님).</div>';
+document.getElementById('misc-list').innerHTML=mh;
+</script>
+</body>
+</html>
