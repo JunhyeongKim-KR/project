@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>rtl-guard - 보안 구조 시각화</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; padding: 40px; }
+  h1 { text-align: center; font-size: 2em; margin-bottom: 10px; color: #58a6ff; }
+  .subtitle { text-align: center; color: #8b949e; margin-bottom: 40px; font-size: 1.1em; }
+  .container { max-width: 900px; margin: 0 auto; }
+
+  /* Layer cards */
+  .layer { border: 1px solid #30363d; border-radius: 12px; padding: 24px; margin-bottom: 20px; position: relative; transition: all 0.3s; }
+  .layer:hover { border-color: #58a6ff; transform: translateX(4px); }
+  .layer-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .layer-num { background: #58a6ff; color: #0d1117; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9em; }
+  .layer-title { font-size: 1.3em; font-weight: 600; }
+  .layer-desc { color: #8b949e; line-height: 1.6; margin-bottom: 12px; }
+  .layer-file { background: #161b22; padding: 8px 14px; border-radius: 6px; font-family: monospace; font-size: 0.9em; color: #79c0ff; display: inline-block; }
+  .layer-tag { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75em; font-weight: 600; margin-left: 8px; }
+  .tag-soft { background: #1f3a1f; color: #56d364; }
+  .tag-medium { background: #2d1f00; color: #e3b341; }
+  .tag-hard { background: #3d1f1f; color: #f85149; }
+  .tag-os { background: #1f2d3d; color: #58a6ff; }
+
+  /* Flow diagram */
+  .flow-section { margin-top: 50px; }
+  .flow-section h2 { font-size: 1.5em; margin-bottom: 24px; color: #58a6ff; text-align: center; }
+  .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .flow-step { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 16px 28px; text-align: center; min-width: 340px; position: relative; }
+  .flow-step.blocked { border-color: #f85149; background: #1a0f0f; }
+  .flow-step.pass { border-color: #56d364; background: #0f1a0f; }
+  .flow-arrow { color: #484f58; font-size: 1.5em; padding: 4px 0; }
+  .flow-label { font-size: 0.8em; color: #8b949e; margin-top: 4px; }
+  .flow-step code { background: #0d1117; padding: 2px 8px; border-radius: 4px; font-size: 0.9em; color: #79c0ff; }
+
+  /* Install section */
+  .install-section { margin-top: 50px; }
+  .install-section h2 { font-size: 1.5em; margin-bottom: 24px; color: #58a6ff; text-align: center; }
+  .install-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px; }
+  .install-box pre { background: #0d1117; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 0.95em; line-height: 1.6; }
+  .install-box pre code { color: #c9d1d9; }
+  .install-box .comment { color: #8b949e; }
+  .install-box .cmd { color: #56d364; }
+
+  /* Comparison table */
+  .table-section { margin-top: 50px; }
+  .table-section h2 { font-size: 1.5em; margin-bottom: 24px; color: #58a6ff; text-align: center; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #161b22; padding: 12px 16px; text-align: left; border-bottom: 2px solid #30363d; color: #58a6ff; }
+  td { padding: 12px 16px; border-bottom: 1px solid #21262d; }
+  tr:hover { background: #161b22; }
+  .yes { color: #56d364; font-weight: bold; }
+  .no { color: #f85149; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>rtl-guard</h1>
+  <p class="subtitle">Claude Code에서 rtl/ 폴더 접근을 원천 차단하는 3겹 보안 구조</p>
+
+  <!-- Layers -->
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-num">1</div>
+      <span class="layer-title">CLAUDE.md - 규칙 인식</span>
+      <span class="layer-tag tag-soft">SOFT</span>
+    </div>
+    <p class="layer-desc">Claude가 세션 시작 시 읽고 자발적으로 따르는 규칙. "rtl/ 접근 금지"라고 적혀있으면 스스로 안 함.</p>
+    <span class="layer-file">~/CLAUDE.md</span>
+  </div>
+
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-num">2</div>
+      <span class="layer-title">.claudeignore - 검색 차단</span>
+      <span class="layer-tag tag-medium">MEDIUM</span>
+    </div>
+    <p class="layer-desc">Glob/Grep 검색 결과에서 rtl/ 하위 파일을 제외. Claude가 검색으로 rtl/ 파일을 "발견"하는 것 자체를 방지.</p>
+    <span class="layer-file">~/.claudeignore</span>
+  </div>
+
+  <div class="layer">
+    <div class="layer-header">
+      <div class="layer-num">3</div>
+      <span class="layer-title">PreToolUse Hook - 도구 차단</span>
+      <span class="layer-tag tag-hard">HARD</span>
+    </div>
+    <p class="layer-desc">모든 도구(Read/Edit/Write/Bash/Grep/Glob) 호출 시 경로/명령어에 rtl/이 포함되면 실행 자체를 거부. 최후의 방어선.</p>
+    <span class="layer-file">~/.claude/scripts/block-rtl-access.sh</span>
+    <span class="layer-file" style="margin-left:8px;">~/.claude/settings.json</span>
+  </div>
+
+  <div class="layer" style="border-color: #30363d; border-style: dashed;">
+    <div class="layer-header">
+      <div class="layer-num" style="background: #484f58;">+</div>
+      <span class="layer-title">OS 파일 잠금 (선택)</span>
+      <span class="layer-tag tag-os">OS</span>
+    </div>
+    <p class="layer-desc">chattr +i / chflags schg로 hook 파일 자체를 수정 불가능하게 잠금. root만 해제 가능.</p>
+    <span class="layer-file">sudo chattr +i (Linux) / sudo chflags schg (macOS)</span>
+  </div>
+
+  <!-- Flow -->
+  <div class="flow-section">
+    <h2>실행 흐름</h2>
+    <div class="flow">
+      <div class="flow-step">Claude: <code>Read rtl/top.v</code></div>
+      <div class="flow-arrow">|</div>
+      <div class="flow-step">CLAUDE.md: "rtl/ 접근 금지" 규칙 인식<div class="flow-label">실수로 통과할 수 있음</div></div>
+      <div class="flow-arrow">|</div>
+      <div class="flow-step">.claudeignore: 검색 결과에서 제외<div class="flow-label">직접 경로 지정 시 통과</div></div>
+      <div class="flow-arrow">|</div>
+      <div class="flow-step">settings.json: PreToolUse hook 발동</div>
+      <div class="flow-arrow">|</div>
+      <div class="flow-step">block-rtl-access.sh: 경로에서 rtl/ 감지</div>
+      <div class="flow-arrow">|</div>
+      <div class="flow-step blocked">BLOCKED (exit 2) - 도구 실행 거부</div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-section">
+    <h2>공격 시나리오별 차단 여부</h2>
+    <table>
+      <thead>
+        <tr><th>시도</th><th>Layer 1<br>CLAUDE.md</th><th>Layer 2<br>.claudeignore</th><th>Layer 3<br>Hook</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>Grep rtl/**/*.v</code></td><td class="yes">차단</td><td class="yes">차단</td><td class="yes">차단</td></tr>
+        <tr><td><code>Read rtl/top.v</code></td><td class="yes">차단</td><td class="no">통과</td><td class="yes">차단</td></tr>
+        <tr><td><code>Bash: cat rtl/top.v</code></td><td class="yes">차단</td><td class="no">통과</td><td class="yes">차단</td></tr>
+        <tr><td><code>Write: rtl/ 내용 문서</code></td><td class="yes">차단</td><td class="no">통과</td><td class="yes">통과 (내용은 OK)</td></tr>
+        <tr><td><code>Edit rtl/top.v</code></td><td class="yes">차단</td><td class="no">통과</td><td class="yes">차단</td></tr>
+        <tr><td>hook 파일 삭제 시도</td><td class="no">통과</td><td class="no">통과</td><td class="yes">차단 (자기 보호)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Install -->
+  <div class="install-section">
+    <h2>설치</h2>
+    <div class="install-box">
+      <pre><code><span class="comment"># 설치</span>
+<span class="cmd">bash install-rtl-guard.sh</span>
+
+<span class="comment"># 임시 허가 (필요시)</span>
+<span class="cmd">touch ~/.rtl-guard-unlock</span>
+<span class="cmd">rm ~/.rtl-guard-unlock</span>
+
+<span class="comment"># 파일 잠금 (선택)</span>
+<span class="cmd">sudo chattr +i ~/.claude/scripts/block-rtl-access.sh</span>
+<span class="cmd">sudo chattr +i ~/.claude/settings.json</span>
+<span class="cmd">sudo chattr +i ~/.claudeignore</span></code></pre>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
