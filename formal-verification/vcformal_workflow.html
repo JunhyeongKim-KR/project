@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Formal Verification Workflow: LEC, FPV & SEC</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #334155;
+    --border: #475569;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --accent1: #38bdf8;
+    --accent2: #a78bfa;
+    --accent3: #34d399;
+    --accent4: #fb923c;
+    --accent5: #f472b6;
+    --proven: #34d399;
+    --fail: #f87171;
+    --warn: #fbbf24;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--accent1), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: var(--text-dim);
+    margin-bottom: 2.5rem;
+    font-size: 0.95rem;
+  }
+
+  .tab-nav {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    padding: 0.7rem 1.5rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+  }
+
+  .tab-btn:hover { border-color: var(--accent1); color: var(--text); }
+  .tab-btn.active {
+    background: linear-gradient(135deg, var(--accent1), var(--accent2));
+    color: white;
+    border-color: transparent;
+    font-weight: 600;
+  }
+
+  .tab-content { display: none; animation: fadeIn 0.4s ease; }
+  .tab-content.active { display: block; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .card h2 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .card h3 {
+    font-size: 1.05rem;
+    margin: 1rem 0 0.5rem;
+    color: var(--accent1);
+  }
+
+  /* Flow Diagram */
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 1.5rem 0;
+    flex-wrap: wrap;
+  }
+
+  .flow-box {
+    padding: 0.8rem 1.2rem;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 500;
+    min-width: 120px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .flow-box:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .flow-box.selected { box-shadow: 0 0 0 2px white, 0 4px 12px rgba(0,0,0,0.3); }
+
+  .flow-arrow {
+    font-size: 1.5rem;
+    color: var(--text-dim);
+    margin: 0 0.3rem;
+  }
+
+  .flow-input { background: rgba(56, 189, 248, 0.15); border: 1px solid var(--accent1); color: var(--accent1); }
+  .flow-process { background: rgba(167, 139, 250, 0.15); border: 1px solid var(--accent2); color: var(--accent2); }
+  .flow-output-pass { background: rgba(52, 211, 153, 0.15); border: 1px solid var(--accent3); color: var(--accent3); }
+  .flow-output-fail { background: rgba(248, 113, 113, 0.15); border: 1px solid var(--fail); color: var(--fail); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.88rem;
+  }
+
+  th {
+    background: var(--surface2);
+    padding: 0.7rem;
+    text-align: left;
+    border-bottom: 2px solid var(--border);
+    color: var(--accent1);
+    font-weight: 600;
+  }
+
+  td {
+    padding: 0.6rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tr:hover td { background: rgba(56, 189, 248, 0.05); }
+
+  /* Code blocks */
+  pre {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin: 0.8rem 0;
+  }
+
+  code { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
+  .kw { color: #ff7b72; }
+  .type { color: #79c0ff; }
+  .str { color: #a5d6ff; }
+  .cmt { color: #8b949e; }
+  .num { color: #d2a8ff; }
+  .fn { color: #d2a8ff; }
+  .op { color: #ff7b72; }
+  .sva { color: #7ee787; }
+
+  /* Expandable detail panels */
+  .detail-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  .detail-panel.active { display: block; }
+
+  /* Waveform Canvas */
+  .waveform-container {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    position: relative;
+  }
+
+  .waveform-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .wave-btn {
+    padding: 0.4rem 1rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+  }
+
+  .wave-btn:hover { border-color: var(--accent1); }
+  .wave-btn.active { background: var(--accent1); color: #0f172a; }
+
+  canvas { display: block; }
+
+  /* Pipeline animation */
+  .pipeline-viz {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin: 1rem 0;
+  }
+
+  .pipe-col {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  .pipe-col h4 {
+    text-align: center;
+    margin-bottom: 0.8rem;
+    font-size: 0.95rem;
+  }
+
+  .pipe-stage {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.4rem 0;
+    padding: 0.5rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    transition: all 0.3s;
+  }
+
+  .pipe-stage .label { flex: 0 0 60px; font-weight: 600; }
+  .pipe-stage .bar {
+    flex: 1;
+    height: 28px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 500;
+    transition: all 0.5s;
+  }
+
+  .pipe-stage .bar.active {
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+  }
+
+  .bar-mul { background: rgba(167, 139, 250, 0.3); border: 1px solid var(--accent2); color: var(--accent2); }
+  .bar-add { background: rgba(52, 211, 153, 0.3); border: 1px solid var(--accent3); color: var(--accent3); }
+  .bar-reg { background: rgba(56, 189, 248, 0.3); border: 1px solid var(--accent1); color: var(--accent1); }
+  .bar-empty { background: transparent; border: 1px dashed var(--border); color: var(--text-dim); }
+  .bar-result { background: rgba(251, 146, 60, 0.3); border: 1px solid var(--accent4); color: var(--accent4); }
+
+  /* Latency comparison */
+  .latency-grid {
+    display: grid;
+    grid-template-columns: 60px repeat(8, 1fr);
+    gap: 2px;
+    margin: 1rem 0;
+    font-size: 0.75rem;
+  }
+
+  .lat-header { color: var(--text-dim); padding: 0.3rem; text-align: center; font-weight: 600; }
+  .lat-cell {
+    padding: 0.4rem;
+    text-align: center;
+    border-radius: 4px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lat-active { background: rgba(56, 189, 248, 0.2); border: 1px solid var(--accent1); color: var(--accent1); }
+  .lat-result { background: rgba(52, 211, 153, 0.3); border: 1px solid var(--accent3); color: var(--accent3); font-weight: 700; }
+  .lat-offset { background: rgba(251, 146, 60, 0.15); border: 1px dashed var(--accent4); }
+
+  /* Badge */
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .badge-proven { background: rgba(52, 211, 153, 0.2); color: var(--proven); border: 1px solid var(--proven); }
+  .badge-fail { background: rgba(248, 113, 113, 0.2); color: var(--fail); border: 1px solid var(--fail); }
+  .badge-bounded { background: rgba(251, 191, 36, 0.2); color: var(--warn); border: 1px solid var(--warn); }
+
+  /* SVA visual */
+  .sva-card {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 0.6rem 0;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .sva-card:hover { border-color: var(--accent1); }
+  .sva-card .sva-name {
+    font-weight: 600;
+    color: var(--accent3);
+    margin-bottom: 0.3rem;
+  }
+  .sva-card .sva-desc { color: var(--text-dim); font-size: 0.85rem; }
+  .sva-card .sva-code { margin-top: 0.5rem; display: none; }
+  .sva-card.expanded .sva-code { display: block; }
+
+  /* Tooltip */
+  .tip {
+    position: relative;
+    border-bottom: 1px dotted var(--accent1);
+    cursor: help;
+  }
+
+  .tip .tiptext {
+    visibility: hidden;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.5rem;
+    border-radius: 6px;
+    position: absolute;
+    z-index: 10;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 240px;
+    font-size: 0.8rem;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .tip:hover .tiptext { visibility: visible; opacity: 1; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+
+  @media (max-width: 768px) {
+    .two-col, .pipeline-viz { grid-template-columns: 1fr; }
+    .flow { gap: 0.3rem; }
+    .flow-box { min-width: 90px; font-size: 0.75rem; padding: 0.5rem 0.8rem; }
+    body { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Formal Verification Workflow</h1>
+<p class="subtitle">FPV (Model Checking) / LEC (Formality) / SEC (Sequential Equivalence) - Practical Guide</p>
+
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="showTab('fpv')">FPV Workflow</button>
+  <button class="tab-btn" onclick="showTab('lec')">LEC Workflow</button>
+  <button class="tab-btn" onclick="showTab('sec')">SEC Workflow</button>
+  <button class="tab-btn" onclick="showTab('compare')">FPV vs LEC vs SEC</button>
+  <button class="tab-btn" onclick="showTab('ref')">Quick Reference</button>
+</div>
+
+<!-- ==================== TAB: LEC ==================== -->
+<div id="tab-lec" class="tab-content">
+
+  <div class="card">
+    <h2>LEC 실행 Flow (Formality)</h2>
+    <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1rem;font-size:0.82rem;">
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:0.3rem 1rem;">
+        <span style="color:var(--accent3);font-weight:600;">Source Files</span>
+        <span><code>lec/design/data_proc.sv</code> &nbsp; <code>lec/design/data_proc_opt.sv</code> &nbsp; <code>lec/run.tcl</code></span>
+        <span style="color:var(--accent3);font-weight:600;">Run</span>
+        <span><code>cd lec && make run</code> &nbsp; 또는 &nbsp; <code>fm_shell -f run.tcl</code></span>
+      </div>
+    </div>
+    <p style="color:var(--text-dim); margin-bottom:1rem;">레지스터 구조가 동일한 두 설계의 조합 로직 동등성을 검증합니다. 각 단계를 클릭하세요.</p>
+
+    <div class="flow">
+      <div class="flow-box flow-input" onclick="showLecDetail('ref')">Reference<br><small>(원본 RTL)</small></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-input" onclick="showLecDetail('impl')">Implementation<br><small>(최적화 후)</small></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-process" onclick="showLecDetail('match')">Match</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-process" onclick="showLecDetail('verify')">Verify</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-output-pass" onclick="showLecDetail('result')">SUCCEEDED</div>
+    </div>
+
+    <!-- LEC Concept -->
+    <div id="lec-ref" class="detail-panel">
+      <h3>Reference: data_proc.sv (직관적 구현)</h3>
+      <p style="color:var(--text-dim); margin-bottom:0.8rem;">sel에 따라 덧셈/뺄셈을 선택하는 if/else 구현</p>
+      <div class="two-col">
+        <div>
+          <pre><code><span class="kw">module</span> <span class="fn">data_proc</span> (
+  <span class="kw">input</span>  <span class="type">logic</span>       clk, rst_n, valid_in, sel,
+  <span class="kw">input</span>  <span class="type">logic</span> [7:0] a, b,
+  <span class="kw">output</span> <span class="type">logic</span>       valid_out,
+  <span class="kw">output</span> <span class="type">logic</span> [8:0] result
+);
+  <span class="cmt">// Input registers</span>
+  <span class="type">logic</span> sel_r, valid_r;
+  <span class="type">logic</span> [7:0] a_r, b_r;
+  <span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk ...)
+    sel_r &lt;= sel; valid_r &lt;= valid_in;
+    a_r &lt;= a; b_r &lt;= b;
+
+  <span class="cmt">// Comb logic: 직관적 if/else</span>
+  <span class="kw">always_comb</span>
+    <span class="kw">if</span> (sel_r)
+      comb_result = a_r <span class="op">+</span> b_r;  <span class="cmt">// 덧셈</span>
+    <span class="kw">else</span>
+      comb_result = a_r <span class="op">-</span> b_r;  <span class="cmt">// 뺄셈</span>
+
+  <span class="cmt">// Output registers</span>
+  <span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk ...)
+    result &lt;= comb_result;
+    valid_out &lt;= valid_r;
+<span class="kw">endmodule</span></code></pre>
+        </div>
+        <div>
+          <h3>LEC 동작 원리</h3>
+          <svg viewBox="0 0 300 200" style="width:100%;max-width:300px;margin:0 auto;display:block;">
+            <!-- Spec side -->
+            <rect x="10" y="20" width="60" height="30" rx="4" fill="rgba(56,189,248,0.15)" stroke="#38bdf8" stroke-width="1.5"/>
+            <text x="40" y="40" text-anchor="middle" fill="#38bdf8" font-size="10" font-weight="600">FF_A</text>
+            <rect x="10" y="80" width="60" height="30" rx="4" fill="rgba(56,189,248,0.15)" stroke="#38bdf8" stroke-width="1.5"/>
+            <text x="40" y="100" text-anchor="middle" fill="#38bdf8" font-size="10" font-weight="600">FF_B</text>
+            <!-- Comb logic box -->
+            <rect x="100" y="35" width="90" height="60" rx="6" fill="rgba(167,139,250,0.15)" stroke="#a78bfa" stroke-width="1.5"/>
+            <text x="145" y="62" text-anchor="middle" fill="#a78bfa" font-size="10">Comb Logic</text>
+            <text x="145" y="78" text-anchor="middle" fill="#a78bfa" font-size="9">(if/else)</text>
+            <!-- Output FF -->
+            <rect x="220" y="45" width="60" height="30" rx="4" fill="rgba(56,189,248,0.15)" stroke="#38bdf8" stroke-width="1.5"/>
+            <text x="250" y="65" text-anchor="middle" fill="#38bdf8" font-size="10" font-weight="600">FF_C</text>
+            <!-- Arrows -->
+            <line x1="70" y1="35" x2="100" y2="55" stroke="#94a3b8" stroke-width="1.5"/>
+            <line x1="70" y1="95" x2="100" y2="75" stroke="#94a3b8" stroke-width="1.5"/>
+            <line x1="190" y1="65" x2="220" y2="60" stroke="#94a3b8" stroke-width="1.5"/>
+            <!-- Match arrows -->
+            <text x="150" y="130" text-anchor="middle" fill="#94a3b8" font-size="10">↕ 1:1 매칭</text>
+            <!-- Impl side -->
+            <rect x="10" y="145" width="60" height="30" rx="4" fill="rgba(251,146,60,0.15)" stroke="#fb923c" stroke-width="1.5"/>
+            <text x="40" y="165" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">FF_A'</text>
+            <rect x="100" y="145" width="90" height="30" rx="6" fill="rgba(251,146,60,0.15)" stroke="#fb923c" stroke-width="1.5"/>
+            <text x="145" y="164" text-anchor="middle" fill="#fb923c" font-size="10">Comb Logic'</text>
+            <rect x="220" y="145" width="60" height="30" rx="4" fill="rgba(251,146,60,0.15)" stroke="#fb923c" stroke-width="1.5"/>
+            <text x="250" y="165" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">FF_C'</text>
+            <line x1="70" y1="160" x2="100" y2="160" stroke="#94a3b8" stroke-width="1.5"/>
+            <line x1="190" y1="160" x2="220" y2="160" stroke="#94a3b8" stroke-width="1.5"/>
+            <!-- Equivalence check -->
+            <text x="145" y="195" text-anchor="middle" fill="#34d399" font-size="11" font-weight="700">Comb Logic == Comb Logic' ?</text>
+          </svg>
+          <p style="color:var(--text-dim);font-size:0.82rem;text-align:center;margin-top:0.5rem;">FF를 1:1 매칭 후 그 사이의 조합 로직만 비교</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Impl Detail -->
+    <div id="lec-impl" class="detail-panel">
+      <h3>Implementation: data_proc_opt.sv (최적화 구현)</h3>
+      <p style="color:var(--text-dim); margin-bottom:0.8rem;">동일 레지스터 구조, 다른 조합 로직: 2의 보수 기반 통합 가산기</p>
+      <pre><code><span class="cmt">// Comb logic: 최적화 (통합 가산기)</span>
+<span class="type">logic</span> [8:0] b_modified;
+<span class="kw">always_comb begin</span>
+  <span class="cmt">// sel=1: b 그대로, sel=0: ~b+1 (2의 보수 = -b)</span>
+  b_modified = sel_r ? {1'b0, b_r} : (~{1'b0, b_r} + <span class="num">9'd1</span>);
+  comb_result = {1'b0, a_r} <span class="op">+</span> b_modified;  <span class="cmt">// 항상 덧셈 하나로 통합</span>
+<span class="kw">end</span></code></pre>
+      <table style="max-width:500px;">
+        <tr><th>항목</th><th>Spec</th><th>Impl</th></tr>
+        <tr><td>레지스터</td><td>sel_r, valid_r, a_r, b_r, result</td><td><strong>동일</strong></td></tr>
+        <tr><td>조합 로직</td><td>if/else (adder + subtractor)</td><td>2's complement (adder only)</td></tr>
+        <tr><td>게이트 수</td><td>adder 1 + subtractor 1</td><td>inverter + adder 1</td></tr>
+      </table>
+    </div>
+
+    <!-- Match Detail -->
+    <div id="lec-match" class="detail-panel">
+      <h3>Match 단계</h3>
+      <p style="color:var(--text-dim); margin-bottom:0.8rem;">Formality가 Ref와 Impl의 compare point를 자동 매칭합니다.</p>
+      <pre><code><span class="cmt"># Formality 실행 결과</span>
+*********************************** Matching Results ***********************************
+ <span class="num">38</span> Compare points matched by name
+  <span class="num">0</span> Compare points matched by signature analysis
+  <span class="num">0</span> Compare points matched by topology
+ <span class="num">20</span> Matched primary inputs, black-box outputs
+  <span class="num">0</span>(<span class="num">0</span>) Unmatched reference(implementation) compare points
+  <span class="num">0</span>(<span class="num">0</span>) Unmatched reference(implementation) primary inputs
+****************************************************************************************</code></pre>
+      <p style="color:var(--text-dim);font-size:0.85rem;">38개 compare point가 이름으로 매칭됨 (레지스터 이름이 동일하므로). Unmatched 0개.</p>
+    </div>
+
+    <!-- Verify Detail -->
+    <div id="lec-verify" class="detail-panel">
+      <h3>TCL 스크립트 (run.tcl)</h3>
+      <pre><code><span class="cmt"># Read reference</span>
+<span class="fn">read_sverilog</span> -r design/data_proc.sv
+<span class="fn">set_top</span> r:/WORK/data_proc
+
+<span class="cmt"># Read implementation</span>
+<span class="fn">read_sverilog</span> -i design/data_proc_opt.sv
+<span class="fn">set_top</span> i:/WORK/data_proc_opt
+
+<span class="cmt"># Match & Verify</span>
+<span class="fn">match</span>
+<span class="fn">verify</span>
+
+<span class="cmt"># Report</span>
+<span class="fn">report_matched_points</span>
+<span class="fn">report_passing_points</span>
+<span class="fn">report_failing_points</span>
+quit</code></pre>
+
+      <h3>실행 명령</h3>
+      <pre><code>FM = /data/tools_snps/snps/fm/V-2023.12-SP5/bin/fm_shell
+$(FM) -f run.tcl |& tee lec.log</code></pre>
+    </div>
+
+    <!-- Result Detail -->
+    <div id="lec-result" class="detail-panel">
+      <h3>검증 결과</h3>
+      <div class="two-col">
+        <div>
+          <pre><code><span class="sva">Verification SUCCEEDED</span>
+
+ <span class="num">38</span> Passing compare points
+  <span class="num">0</span> Failing compare points
+
+CPU: <span class="num">1.03</span> seconds
+Memory: <span class="num">938</span> MB</code></pre>
+        </div>
+        <div>
+          <table>
+            <tr><th>Compare Point</th><th>결과</th></tr>
+            <tr><td>DFF (sel_r, valid_r, a_r[7:0], b_r[7:0])</td><td><span class="badge badge-proven">PASS</span></td></tr>
+            <tr><td>DFF (result[8:0], valid_out)</td><td><span class="badge badge-proven">PASS</span></td></tr>
+            <tr><td>Port (result[8:0], valid_out)</td><td><span class="badge badge-proven">PASS</span></td></tr>
+            <tr><td>Unmatched</td><td><strong>0</strong></td></tr>
+          </table>
+        </div>
+      </div>
+      <p style="color:var(--accent3);font-weight:600;margin-top:0.5rem;">38/38 compare point 전부 PASS — 두 설계는 기능적으로 동일</p>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB: FPV ==================== -->
+<div id="tab-fpv" class="tab-content active">
+
+  <div class="card">
+    <h2>FPV 실행 Flow</h2>
+    <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1rem;font-size:0.82rem;">
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:0.3rem 1rem;">
+        <span style="color:var(--accent1);font-weight:600;">Source Files</span>
+        <span><code>fpv/design/arbiter_rr.sv</code> &nbsp; <code>fpv/sva/arbiter_props.sv</code> &nbsp; <code>fpv/run.tcl</code></span>
+        <span style="color:var(--accent1);font-weight:600;">Run</span>
+        <span><code>cd fpv && make run</code> &nbsp; 또는 &nbsp; <code>vcf -batch -fmode FPV -f run.tcl</code></span>
+      </div>
+    </div>
+    <p style="color:var(--text-dim); margin-bottom:1rem;">각 단계를 클릭하면 상세 내용을 볼 수 있습니다.</p>
+
+    <div class="flow">
+      <div class="flow-box flow-input" onclick="showFpvDetail('rtl')">RTL 설계</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-input" onclick="showFpvDetail('sva')">SVA 작성</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-process" onclick="showFpvDetail('tcl')">TCL 스크립트</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-process" onclick="showFpvDetail('run')">VCF 실행</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-output-pass" onclick="showFpvDetail('result')">결과 분석</div>
+    </div>
+
+    <!-- RTL Detail -->
+    <div id="fpv-rtl" class="detail-panel">
+      <h3>Round-Robin Arbiter (arbiter_rr.sv)</h3>
+      <p style="color:var(--text-dim); margin-bottom:0.8rem;">4-port round-robin arbiter. Priority pointer가 grant 후 회전하여 공정한 중재를 보장합니다.</p>
+      <div class="two-col">
+        <div>
+          <h3>설계 구조</h3>
+          <pre><code><span class="kw">module</span> <span class="fn">arbiter_rr</span> (
+  <span class="kw">input</span>  <span class="type">logic</span>       clk,
+  <span class="kw">input</span>  <span class="type">logic</span>       rst_n,
+  <span class="kw">input</span>  <span class="type">logic</span> [3:0] req,
+  <span class="kw">output</span> <span class="type">logic</span> [3:0] gnt
+);
+
+  <span class="type">logic</span> [1:0] ptr;  <span class="cmt">// priority pointer</span>
+
+  <span class="cmt">// ptr: grant 후 다음 포트로 회전</span>
+  <span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk <span class="kw">or negedge</span> rst_n)
+    <span class="kw">if</span> (!rst_n) ptr &lt;= 2'd0;
+    <span class="kw">else if</span> (|gnt)
+      <span class="kw">case</span> (1'b1)
+        gnt[0]: ptr &lt;= 2'd1;
+        gnt[1]: ptr &lt;= 2'd2;
+        gnt[2]: ptr &lt;= 2'd3;
+        gnt[3]: ptr &lt;= 2'd0;
+      <span class="kw">endcase</span>
+
+  <span class="cmt">// Combinational grant: ptr 기준 우선순위</span>
+  <span class="kw">always_comb</span> <span class="kw">begin</span>
+    gnt = 4'b0000;
+    <span class="kw">case</span> (ptr)
+      2'd0: <span class="cmt">// port 0 highest</span>
+        <span class="kw">if</span> (req[0]) gnt = 4'b0001;
+        <span class="kw">else if</span> (req[1]) gnt = 4'b0010;
+        <span class="cmt">// ... (2,3 순서대로)</span>
+      <span class="cmt">// 2'd1: port 1 highest ...</span>
+    <span class="kw">endcase</span>
+  <span class="kw">end</span>
+<span class="kw">endmodule</span></code></pre>
+        </div>
+        <div>
+          <h3>Priority Rotation</h3>
+          <svg viewBox="0 0 280 280" style="width:100%;max-width:280px;margin:0 auto;display:block;">
+            <circle cx="140" cy="140" r="100" fill="none" stroke="#475569" stroke-width="2"/>
+            <circle cx="140" cy="40" r="28" fill="rgba(56,189,248,0.15)" stroke="#38bdf8" stroke-width="2"/>
+            <text x="140" y="44" text-anchor="middle" fill="#38bdf8" font-size="13" font-weight="600">Port 0</text>
+            <circle cx="240" cy="140" r="28" fill="rgba(167,139,250,0.15)" stroke="#a78bfa" stroke-width="2"/>
+            <text x="240" y="144" text-anchor="middle" fill="#a78bfa" font-size="13" font-weight="600">Port 1</text>
+            <circle cx="140" cy="240" r="28" fill="rgba(52,211,153,0.15)" stroke="#34d399" stroke-width="2"/>
+            <text x="140" y="244" text-anchor="middle" fill="#34d399" font-size="13" font-weight="600">Port 2</text>
+            <circle cx="40" cy="140" r="28" fill="rgba(251,146,60,0.15)" stroke="#fb923c" stroke-width="2"/>
+            <text x="40" y="144" text-anchor="middle" fill="#fb923c" font-size="13" font-weight="600">Port 3</text>
+            <!-- Arrows -->
+            <path d="M158 52 L222 122" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"/>
+            <path d="M222 158 L158 228" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"/>
+            <path d="M122 228 L58 158" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"/>
+            <path d="M58 122 L122 52" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"/>
+            <defs>
+              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#94a3b8"/>
+              </marker>
+            </defs>
+            <!-- Center label -->
+            <text x="140" y="136" text-anchor="middle" fill="#94a3b8" font-size="11">ptr</text>
+            <text x="140" y="152" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700" id="ptr-label">0</text>
+          </svg>
+          <p style="color:var(--text-dim); font-size:0.85rem; text-align:center; margin-top:0.5rem;">Grant 발생 시 ptr이 다음 포트로 회전</p>
+
+          <h3 style="margin-top:1rem;">Gate Count (VCF 결과)</h3>
+          <table>
+            <tr><td>Flat Instances</td><td><strong>310</strong></td></tr>
+            <tr><td>FlipFlop (bit)</td><td><strong>35</strong></td></tr>
+            <tr><td>Comb Logic</td><td><strong>304</strong></td></tr>
+            <tr><td>Latch</td><td><strong>0</strong></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SVA Detail -->
+    <div id="fpv-sva" class="detail-panel">
+      <h3>SVA Assertions (arbiter_props.sv)</h3>
+      <p style="color:var(--text-dim); margin-bottom:0.8rem;">클릭하여 각 assertion의 SVA 코드를 확인하세요.</p>
+
+      <div class="sva-card" onclick="this.classList.toggle('expanded')">
+        <div class="sva-name">MUTEX <span class="badge badge-proven">assert</span></div>
+        <div class="sva-desc">동시에 최대 1개만 grant 가능 (one-hot or zero)</div>
+        <div class="sva-code">
+          <pre><code><span class="sva">MUTEX</span>: <span class="kw">assert property</span> (
+  @(<span class="kw">posedge</span> clk) <span class="kw">disable iff</span> (!rst_n)
+  <span class="fn">$onehot0</span>(gnt)
+);</code></pre>
+          <p style="color:var(--text-dim);font-size:0.82rem;margin-top:0.5rem;">gnt가 0000, 0001, 0010, 0100, 1000 중 하나임을 보장. 0011 같은 동시 grant는 위반.</p>
+        </div>
+      </div>
+
+      <div class="sva-card" onclick="this.classList.toggle('expanded')">
+        <div class="sva-name">NO_SPURIOUS <span class="badge badge-proven">assert</span></div>
+        <div class="sva-desc">요청 없이 grant 불가 (각 포트별)</div>
+        <div class="sva-code">
+          <pre><code><span class="kw">generate for</span> (i = 0; i &lt; 4; i++)
+  <span class="sva">NO_SPURIOUS</span>: <span class="kw">assert property</span> (
+    @(<span class="kw">posedge</span> clk) <span class="kw">disable iff</span> (!rst_n)
+    gnt[i] <span class="op">|-></span> req[i]
+  );</code></pre>
+        </div>
+      </div>
+
+      <div class="sva-card" onclick="this.classList.toggle('expanded')">
+        <div class="sva-name">GRANT_RESPONSE <span class="badge badge-proven">assert</span></div>
+        <div class="sva-desc">요청이 있으면 0~3 사이클 내 grant 보장</div>
+        <div class="sva-code">
+          <pre><code><span class="sva">GRANT_RESPONSE</span>: <span class="kw">assert property</span> (
+  @(<span class="kw">posedge</span> clk) <span class="kw">disable iff</span> (!rst_n)
+  (req != 4'b0000) <span class="op">|-></span> <span class="fn">##[0:3]</span> (gnt != 4'b0000)
+);</code></pre>
+          <div class="waveform-container">
+            <div class="waveform-controls">
+              <button class="wave-btn active" onclick="startWaveform(this)">Play</button>
+              <button class="wave-btn" onclick="resetWaveform()">Reset</button>
+            </div>
+            <canvas id="wave-grant" width="600" height="140"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="sva-card" onclick="this.classList.toggle('expanded')">
+        <div class="sva-name">COVER_ALL <span class="badge badge-bounded">cover</span></div>
+        <div class="sva-desc">각 포트가 grant 받는 시나리오 도달 가능 확인</div>
+        <div class="sva-code">
+          <pre><code><span class="sva">COVER_GNT_0</span>: <span class="kw">cover property</span> (
+  @(<span class="kw">posedge</span> clk) <span class="kw">disable iff</span> (!rst_n) gnt[0]
+);
+<span class="cmt">// COVER_GNT_1, COVER_GNT_2, COVER_GNT_3 동일 패턴</span></code></pre>
+          <p style="color:var(--text-dim);font-size:0.82rem;margin-top:0.5rem;">Cover가 hit되면 해당 시나리오에 도달 가능함을 증명. Witness 파형도 제공됩니다.</p>
+        </div>
+      </div>
+
+      <div class="sva-card" onclick="this.classList.toggle('expanded')">
+        <div class="sva-name">COVER_ALL_REQ <span class="badge badge-bounded">cover</span></div>
+        <div class="sva-desc">4포트 동시 요청 시나리오</div>
+        <div class="sva-code">
+          <pre><code><span class="sva">COVER_ALL_REQ</span>: <span class="kw">cover property</span> (
+  @(<span class="kw">posedge</span> clk) <span class="kw">disable iff</span> (!rst_n)
+  (req == 4'b1111)
+);</code></pre>
+        </div>
+      </div>
+
+      <pre style="margin-top:1rem;"><code><span class="cmt">// Bind statement: 자동으로 arbiter_rr에 checker 연결</span>
+<span class="kw">bind</span> arbiter_rr arbiter_props u_props (.*);</code></pre>
+    </div>
+
+    <!-- TCL Detail -->
+    <div id="fpv-tcl" class="detail-panel">
+      <h3>run.tcl (FPV)</h3>
+      <pre><code><span class="cmt"># VC Formal FPV Run Script</span>
+
+<span class="cmt"># 1. App mode 설정</span>
+<span class="fn">set_fml_appmode</span> FPV
+
+<span class="cmt"># 2. RTL + SVA 읽기</span>
+<span class="fn">read_file</span> -top arbiter_rr -format sverilog -sva {
+  rtl/arbiter_rr.sv
+  sva/arbiter_props.sv
+}
+
+<span class="cmt"># 3. Clock & Reset 정의</span>
+<span class="fn">create_clock</span> clk -period 10
+<span class="fn">create_reset</span> rst_n -sense low
+
+<span class="cmt"># 4. 초기화 시뮬레이션</span>
+<span class="fn">sim_run</span> -stable
+<span class="fn">sim_save_reset</span>
+
+<span class="cmt"># 5. Formal 검증 실행</span>
+<span class="fn">check_fv</span> -block
+
+<span class="cmt"># 6. 결과 리포트</span>
+<span class="fn">report_fv</span> -list
+<span class="fn">report_fv</span> -verbose</code></pre>
+    </div>
+
+    <!-- Run Detail -->
+    <div id="fpv-run" class="detail-panel">
+      <h3>VCF 실행 명령</h3>
+      <pre><code><span class="cmt"># 환경변수 설정</span>
+<span class="kw">export</span> VC_STATIC_HOME=/data/tools_snps/snps/vc_static/V-2023.12-SP2-4
+<span class="kw">export</span> PATH=$VC_STATIC_HOME/bin:$PATH
+
+<span class="cmt"># Batch 모드 실행</span>
+vcf -batch -fmode FPV -f run.tcl |& tee fpv.log
+
+<span class="cmt"># GUI 모드 (Verdi 연동)</span>
+vcf -fmode FPV -gui -f run.tcl
+
+<span class="cmt"># 라이선스 옵션</span>
+vcf -batch -fmode FPV <span class="str">-fml_base</span> -f run.tcl    <span class="cmt"># Base tier</span>
+vcf -batch -fmode FPV <span class="str">-fml_ultra</span> -f run.tcl   <span class="cmt"># Ultra tier</span>
+vcf -batch -fmode FPV <span class="str">-fml_elite</span> -f run.tcl   <span class="cmt"># Elite tier</span>
+vcf -batch -fmode FPV <span class="str">-fml_legacy</span> -f run.tcl  <span class="cmt"># Legacy fallback</span></code></pre>
+
+      <h3>Makefile</h3>
+      <pre><code>VCF = /data/tools_snps/snps/vc_static/V-2023.12-SP2-4/bin/vcf
+<span class="kw">export</span> VC_STATIC_HOME = /data/tools_snps/snps/vc_static/V-2023.12-SP2-4
+
+run:
+	$(VCF) -batch -fmode FPV -f run.tcl |& tee fpv.log
+gui:
+	$(VCF) -fmode FPV -gui -f run.tcl
+clean:
+	rm -rf vc_static_* fpv.log *.fsdb csrc</code></pre>
+    </div>
+
+    <!-- Result Detail -->
+    <div id="fpv-result" class="detail-panel">
+      <h3>결과 해석</h3>
+      <div class="two-col">
+        <div>
+          <table>
+            <tr>
+              <th>상태</th><th>의미</th>
+            </tr>
+            <tr>
+              <td><span class="badge badge-proven">Proven</span></td>
+              <td>모든 가능한 입력에서 속성이 항상 성립함을 수학적으로 증명</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-fail">Falsified</span></td>
+              <td>속성 위반 반례(counterexample) 발견. 파형으로 확인 가능</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-bounded">Bounded</span></td>
+              <td>N cycle까지만 증명 완료. 완전 증명(unbounded)은 미달</td>
+            </tr>
+          </table>
+        </div>
+        <div>
+          <h3>컴파일 결과</h3>
+          <pre><code><span class="cmt"># Compilation: SUCCESS</span>
+<span class="cmt"># Gate Counts</span>
+Flat Instances  = <span class="num">310</span>
+FlipFlop BitWise = <span class="num">35</span>
+Comb logic      = <span class="num">304</span>
+Latch Bitwise   = <span class="num">0</span>
+
+<span class="cmt"># check_fv: LICENSE_CHECKOUT_ERROR</span>
+<span class="cmt"># (fml_fv 라이선스 필요)</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB 2: SEC ==================== -->
+<div id="tab-sec" class="tab-content">
+
+  <div class="card">
+    <h2>SEC 실행 Flow</h2>
+    <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1rem;font-size:0.82rem;">
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:0.3rem 1rem;">
+        <span style="color:var(--accent4);font-weight:600;">Source Files</span>
+        <span><code>sec/design/madd_pipe2.sv</code> &nbsp; <code>sec/design/madd_pipe3.sv</code> &nbsp; <code>sec/run.tcl</code></span>
+        <span style="color:var(--accent4);font-weight:600;">Run</span>
+        <span><code>cd sec && make run</code> &nbsp; 또는 &nbsp; <code>vcf -batch -fmode SEQ -f run.tcl</code></span>
+      </div>
+    </div>
+    <p style="color:var(--text-dim); margin-bottom:1rem;">두 설계의 기능적 동등성을 수학적으로 증명합니다.</p>
+
+    <div class="flow">
+      <div class="flow-box flow-input" onclick="showSecDetail('spec')">Spec RTL<br><small>(원본)</small></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-input" onclick="showSecDetail('impl')">Impl RTL<br><small>(변환 후)</small></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-process" onclick="showSecDetail('tcl')">TCL 스크립트</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-process" onclick="showSecDetail('latency')">Latency 설정</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-output-pass" onclick="showSecDetail('result')">동등성 판정</div>
+    </div>
+
+    <!-- Spec Detail -->
+    <div id="sec-spec" class="detail-panel">
+      <h3>Spec: 2-Stage Pipeline (madd_pipe2.sv)</h3>
+      <p style="color:var(--text-dim); margin-bottom:0.8rem;">out = (a * b) + c, Latency = 2 cycles</p>
+      <pre><code><span class="kw">module</span> <span class="fn">madd_pipe2</span> (
+  <span class="kw">input</span>  <span class="type">logic</span>        clk, rst_n, valid_in,
+  <span class="kw">input</span>  <span class="type">logic</span> [7:0]  a, b, c,
+  <span class="kw">output</span> <span class="type">logic</span>        valid_out,
+  <span class="kw">output</span> <span class="type">logic</span> [16:0] result
+);
+  <span class="cmt">// Stage 1: multiply + register c</span>
+  <span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk <span class="kw">or negedge</span> rst_n)
+    <span class="kw">if</span> (!rst_n) <span class="kw">begin</span>
+      mul_reg &lt;= '0; c_reg &lt;= '0; valid_s1 &lt;= 0;
+    <span class="kw">end else begin</span>
+      mul_reg &lt;= a * b;   <span class="cmt">// 곱셈</span>
+      c_reg   &lt;= c;       <span class="cmt">// c 보존</span>
+      valid_s1 &lt;= valid_in;
+    <span class="kw">end</span>
+
+  <span class="cmt">// Stage 2: add</span>
+  <span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk <span class="kw">or negedge</span> rst_n)
+    <span class="kw">if</span> (!rst_n) <span class="kw">begin</span>
+      add_reg &lt;= '0; valid_s2 &lt;= 0;
+    <span class="kw">end else begin</span>
+      add_reg &lt;= mul_reg + c_reg; <span class="cmt">// 덧셈</span>
+      valid_s2 &lt;= valid_s1;
+    <span class="kw">end</span>
+
+  <span class="kw">assign</span> result = add_reg;
+  <span class="kw">assign</span> valid_out = valid_s2;
+<span class="kw">endmodule</span></code></pre>
+    </div>
+
+    <!-- Impl Detail -->
+    <div id="sec-impl" class="detail-panel">
+      <h3>Impl: 3-Stage Pipeline (madd_pipe3.sv) — Retimed</h3>
+      <p style="color:var(--text-dim); margin-bottom:0.8rem;">동일 함수 (a * b) + c, 입력 레지스터 추가로 Latency = 3 cycles</p>
+      <pre><code><span class="kw">module</span> <span class="fn">madd_pipe3</span> (
+  <span class="cmt">// 동일한 포트 인터페이스</span>
+  ...
+);
+  <span class="cmt">// Stage 1: 입력 레지스터 (retiming으로 추가)</span>
+  <span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk ...)
+    a_reg &lt;= a; b_reg &lt;= b; c_reg &lt;= c;
+    valid_s1 &lt;= valid_in;
+
+  <span class="cmt">// Stage 2: multiply</span>
+  <span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk ...)
+    mul_reg &lt;= a_reg * b_reg;
+    c_reg2  &lt;= c_reg;
+    valid_s2 &lt;= valid_s1;
+
+  <span class="cmt">// Stage 3: add</span>
+  <span class="kw">always_ff</span> @(<span class="kw">posedge</span> clk ...)
+    add_reg &lt;= mul_reg + c_reg2;
+    valid_s3 &lt;= valid_s2;
+
+  <span class="kw">assign</span> result = add_reg;
+  <span class="kw">assign</span> valid_out = valid_s3;
+<span class="kw">endmodule</span></code></pre>
+    </div>
+
+    <!-- TCL Detail -->
+    <div id="sec-tcl" class="detail-panel">
+      <h3>run.tcl (SEC)</h3>
+      <pre><code><span class="fn">set_fml_appmode</span> SEQ
+
+<span class="cmt"># 두 설계를 함께 로드 (spec top으로)</span>
+<span class="fn">read_file</span> -top madd_pipe2 -format sverilog {
+  rtl/madd_pipe2.sv rtl/madd_pipe3.sv
+}
+
+<span class="fn">create_clock</span> clk -period 10
+<span class="fn">create_reset</span> rst_n -sense low
+
+<span class="fn">sim_run</span> -stable
+<span class="fn">sim_save_reset</span>
+
+<span class="cmt"># Impl 지정 및 latency offset</span>
+<span class="cmt"># (정확한 명령어는 버전별 문서 확인)</span>
+<span class="fn">set_seq_equiv_latency</span> -latency 1 -design impl
+
+<span class="fn">check_seq_equiv</span> -block
+<span class="fn">report_seq_equiv</span></code></pre>
+    </div>
+
+    <!-- Latency Detail -->
+    <div id="sec-latency" class="detail-panel">
+      <h3>Latency Offset 개념</h3>
+      <p style="color:var(--text-dim); margin-bottom:1rem;">Impl이 Spec보다 1 cycle 늦게 결과를 출력하므로 offset = 1로 설정합니다.</p>
+
+      <div class="pipeline-viz">
+        <div class="pipe-col">
+          <h4 style="color:var(--accent1);">Spec (madd_pipe2) — 2 stages</h4>
+          <div id="pipe-spec">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+        <div class="pipe-col">
+          <h4 style="color:var(--accent4);">Impl (madd_pipe3) — 3 stages</h4>
+          <div id="pipe-impl">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="waveform-controls" style="justify-content:center;margin:0.5rem 0;">
+        <button class="wave-btn" onclick="startPipelineAnim()" id="pipe-play-btn">Play Animation</button>
+        <button class="wave-btn" onclick="resetPipelineAnim()">Reset</button>
+        <span style="color:var(--text-dim);font-size:0.85rem;margin-left:1rem;" id="pipe-cycle">Cycle: 0</span>
+      </div>
+
+      <h3>Latency 비교 타이밍</h3>
+      <div class="latency-grid">
+        <div class="lat-header"></div>
+        <div class="lat-header">C1</div>
+        <div class="lat-header">C2</div>
+        <div class="lat-header">C3</div>
+        <div class="lat-header">C4</div>
+        <div class="lat-header">C5</div>
+        <div class="lat-header">C6</div>
+        <div class="lat-header">C7</div>
+        <div class="lat-header">C8</div>
+
+        <div class="lat-header" style="color:var(--accent1)">Spec</div>
+        <div class="lat-cell lat-active">in D1</div>
+        <div class="lat-cell lat-active">mul</div>
+        <div class="lat-cell lat-result">R1</div>
+        <div class="lat-cell lat-active">in D2</div>
+        <div class="lat-cell lat-active">mul</div>
+        <div class="lat-cell lat-result">R2</div>
+        <div class="lat-cell"></div>
+        <div class="lat-cell"></div>
+
+        <div class="lat-header" style="color:var(--accent4)">Impl</div>
+        <div class="lat-cell lat-active">in D1</div>
+        <div class="lat-cell lat-active">reg</div>
+        <div class="lat-cell lat-active">mul</div>
+        <div class="lat-cell lat-result lat-offset">R1</div>
+        <div class="lat-cell lat-active">in D2</div>
+        <div class="lat-cell lat-active">reg</div>
+        <div class="lat-cell lat-active">mul</div>
+        <div class="lat-cell lat-result lat-offset">R2</div>
+
+        <div class="lat-header" style="color:var(--accent4);font-size:0.7rem">Offset</div>
+        <div class="lat-cell"></div>
+        <div class="lat-cell"></div>
+        <div class="lat-cell" style="text-align:center;color:var(--accent4);font-size:1.2rem;">&darr;</div>
+        <div class="lat-cell" style="text-align:center;color:var(--accent4);font-size:0.7rem;">+1</div>
+        <div class="lat-cell"></div>
+        <div class="lat-cell"></div>
+        <div class="lat-cell" style="text-align:center;color:var(--accent4);font-size:1.2rem;">&darr;</div>
+        <div class="lat-cell" style="text-align:center;color:var(--accent4);font-size:0.7rem;">+1</div>
+      </div>
+    </div>
+
+    <!-- Result Detail -->
+    <div id="sec-result" class="detail-panel">
+      <h3>결과 해석</h3>
+      <table>
+        <tr><th>결과</th><th>의미</th><th>다음 단계</th></tr>
+        <tr>
+          <td><span class="badge badge-proven">Equivalent</span></td>
+          <td>모든 입력 시퀀스에 대해 출력이 동일 (latency offset 고려)</td>
+          <td>검증 완료, signoff 진행</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-fail">Non-equivalent</span></td>
+          <td>기능 차이 발견. Counterexample 파형 제공</td>
+          <td>변환 오류 수정 후 재실행</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-bounded">Bounded</span></td>
+          <td>N cycle까지만 동등성 확인</td>
+          <td>Unbounded proof 시도 (auxiliary lemma 추가)</td>
+        </tr>
+      </table>
+
+      <h3>Spec 컴파일 결과</h3>
+      <pre><code><span class="cmt"># madd_pipe2 Compilation: SUCCESS</span>
+Flat Instances  = <span class="num">96</span>
+FlipFlop BitWise = <span class="num">43</span>
+Comb logic      = <span class="num">20</span>
+
+<span class="cmt"># check_seq_equiv: 라이선스 필요</span></code></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB 3: Comparison ==================== -->
+<div id="tab-compare" class="tab-content">
+  <div class="card">
+    <h2>FPV vs LEC vs SEC 비교</h2>
+
+    <table>
+      <tr>
+        <th>항목</th>
+        <th style="color:var(--accent1)">FPV (Model Checking)</th>
+        <th style="color:var(--accent3)">LEC</th>
+        <th style="color:var(--accent4)">SEC</th>
+      </tr>
+      <tr>
+        <td><strong>핵심 질문</strong></td>
+        <td>"속성이 항상 성립하는가?"</td>
+        <td>"조합 로직이 동일한가?"</td>
+        <td>"시퀀셜 동작이 동일한가?"</td>
+      </tr>
+      <tr>
+        <td><strong>입력</strong></td>
+        <td>RTL + SVA Properties</td>
+        <td>Ref RTL + Impl RTL/Netlist</td>
+        <td>Spec RTL + Impl RTL</td>
+      </tr>
+      <tr>
+        <td><strong>출력</strong></td>
+        <td>Proven / Falsified / Bounded</td>
+        <td>SUCCEEDED / FAILED</td>
+        <td>Equivalent / Non-equivalent</td>
+      </tr>
+      <tr>
+        <td><strong>레지스터 매칭</strong></td>
+        <td>해당 없음</td>
+        <td>필수 (1:1)</td>
+        <td>불필요</td>
+      </tr>
+      <tr>
+        <td><strong>SVA 필요</strong></td>
+        <td>필수 (사용자 작성)</td>
+        <td>불필요</td>
+        <td>불필요</td>
+      </tr>
+      <tr>
+        <td><strong>주 용도</strong></td>
+        <td>설계 의도, 프로토콜 준수</td>
+        <td>합성 후 netlist 검증</td>
+        <td>Retiming, Clock gating, Pipeline</td>
+      </tr>
+      <tr>
+        <td><strong>속도</strong></td>
+        <td><span class="badge badge-bounded">분~시간</span></td>
+        <td><span class="badge badge-proven">초~분</span></td>
+        <td><span class="badge badge-fail">분~시간+</span></td>
+      </tr>
+      <tr>
+        <td><strong>도구</strong></td>
+        <td>VC Formal (vcf -fmode FPV)</td>
+        <td>Formality (fm_shell)</td>
+        <td>VC Formal (vcf -fmode SEQ)</td>
+      </tr>
+      <tr>
+        <td><strong>핵심 명령</strong></td>
+        <td><code>check_fv</code></td>
+        <td><code>match</code> + <code>verify</code></td>
+        <td><code>check_seq_equiv</code></td>
+      </tr>
+      <tr>
+        <td><strong>라이선스 (현재)</strong></td>
+        <td><span class="badge badge-fail">X</span></td>
+        <td><span class="badge badge-proven">O (5석)</span></td>
+        <td><span class="badge badge-fail">X</span></td>
+      </tr>
+    </table>
+
+    <h3>난이도 스펙트럼</h3>
+    <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1.2rem;margin:1rem 0;">
+      <div style="display:flex;align-items:center;gap:0;margin-bottom:0.5rem;">
+        <div style="flex:1;height:8px;background:linear-gradient(90deg, var(--accent3), var(--accent1), var(--accent4));border-radius:4px;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.8rem;">
+        <div style="text-align:center;">
+          <div style="color:var(--accent3);font-weight:700;">LEC</div>
+          <div style="color:var(--text-dim);">조합 비교</div>
+          <div style="color:var(--text-dim);">초 단위</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="color:var(--accent1);font-weight:700;">FPV</div>
+          <div style="color:var(--text-dim);">속성 검증</div>
+          <div style="color:var(--text-dim);">분~시간</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="color:var(--accent4);font-weight:700;">SEC</div>
+          <div style="color:var(--text-dim);">시퀀셜 비교</div>
+          <div style="color:var(--text-dim);">분~시간+</div>
+        </div>
+      </div>
+      <p style="color:var(--text-dim);font-size:0.8rem;text-align:center;margin-top:0.8rem;">쉬움 ◀━━━━━━━━━━━━━━━━▶ 어려움</p>
+    </div>
+
+    <h3>상호 보완 관계</h3>
+    <div class="flow" style="flex-wrap:wrap; gap:0.5rem;">
+      <div class="flow-box flow-input" style="min-width:130px;">RTL 설계</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box" style="background:rgba(56,189,248,0.15);border:1px solid var(--accent1);color:var(--accent1);min-width:160px;">
+        FPV: 설계 의도<br><small>FSM, 프로토콜</small>
+      </div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-process" style="min-width:130px;">합성</div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box" style="background:rgba(52,211,153,0.15);border:1px solid var(--accent3);color:var(--accent3);min-width:160px;">
+        LEC: 합성 정확성<br><small>RTL vs Netlist</small>
+      </div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-process" style="min-width:130px;">구조 변환<br><small>retiming, CG</small></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box" style="background:rgba(251,146,60,0.15);border:1px solid var(--accent4);color:var(--accent4);min-width:160px;">
+        SEC: 변환 정확성<br><small>기능 보존 증명</small>
+      </div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-box flow-output-pass" style="min-width:100px;">Silicon</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB 4: Quick Reference ==================== -->
+<div id="tab-ref" class="tab-content">
+  <div class="card">
+    <h2>명령어 레퍼런스</h2>
+
+    <h3>실행 명령</h3>
+    <table>
+      <tr><th>명령</th><th>설명</th></tr>
+      <tr><td><code>fm_shell -f run.tcl</code></td><td>Formality LEC 실행</td></tr>
+      <tr><td><code>vcf -batch -fmode FPV -f run.tcl</code></td><td>FPV batch 실행</td></tr>
+      <tr><td><code>vcf -batch -fmode SEQ -f run.tcl</code></td><td>SEC batch 실행</td></tr>
+      <tr><td><code>vcf -gui -fmode FPV -f run.tcl</code></td><td>GUI (ActivityView) 실행</td></tr>
+      <tr><td><code>vcf -no_restore -f run.tcl</code></td><td>이전 세션 무시, 새로 시작</td></tr>
+    </table>
+
+    <h3>Formality (LEC) TCL</h3>
+    <table>
+      <tr><th>명령</th><th>용도</th></tr>
+      <tr><td><code>read_sverilog -r {files}</code></td><td>Reference 설계 읽기</td></tr>
+      <tr><td><code>read_sverilog -i {files}</code></td><td>Implementation 설계 읽기</td></tr>
+      <tr><td><code>set_top r:/WORK/module</code></td><td>Reference top 설정</td></tr>
+      <tr><td><code>set_top i:/WORK/module</code></td><td>Impl top 설정</td></tr>
+      <tr><td><code>match</code></td><td>Compare point 매칭</td></tr>
+      <tr><td><code>verify</code></td><td>동등성 검증 실행</td></tr>
+      <tr><td><code>report_matched_points</code></td><td>매칭된 포인트 리포트</td></tr>
+      <tr><td><code>report_failing_points</code></td><td>실패 포인트 리포트</td></tr>
+    </table>
+
+    <h3>-fmode 옵션</h3>
+    <table>
+      <tr><th>Mode</th><th>용도</th></tr>
+      <tr><td><code>FPV</code></td><td>Formal Property Verification (Model Checking)</td></tr>
+      <tr><td><code>SEQ</code></td><td>Sequential Equivalence Checking</td></tr>
+      <tr><td><code>COV</code></td><td>Formal Coverage Analysis</td></tr>
+      <tr><td><code>CC</code></td><td>Connectivity Checking</td></tr>
+      <tr><td><code>AEP</code></td><td>Automatic Extracted Properties</td></tr>
+      <tr><td><code>FRV</code></td><td>Formal Register Verification</td></tr>
+      <tr><td><code>FUSA</code></td><td>Functional Safety</td></tr>
+      <tr><td><code>DPV</code></td><td>Datapath Verification</td></tr>
+    </table>
+
+    <h3>라이선스 티어</h3>
+    <table>
+      <tr><th>Flag</th><th>설명</th></tr>
+      <tr><td><code>-fml_base</code></td><td>Base 라이선스</td></tr>
+      <tr><td><code>-fml_ultra</code></td><td>Ultra 라이선스</td></tr>
+      <tr><td><code>-fml_elite</code></td><td>Elite 라이선스 (최상위)</td></tr>
+      <tr><td><code>-fml_legacy</code></td><td>레거시 라이선스 호환</td></tr>
+    </table>
+
+    <h3>TCL 명령어</h3>
+    <table>
+      <tr><th>명령</th><th>용도</th></tr>
+      <tr><td><code>set_fml_appmode MODE</code></td><td>검증 모드 설정</td></tr>
+      <tr><td><code>read_file -top MOD -format sverilog -sva {files}</code></td><td>RTL/SVA 파일 읽기</td></tr>
+      <tr><td><code>create_clock clk -period N</code></td><td>클럭 정의</td></tr>
+      <tr><td><code>create_reset rst_n -sense low</code></td><td>리셋 정의 (active low)</td></tr>
+      <tr><td><code>sim_run -stable</code></td><td>초기화 시뮬레이션 실행</td></tr>
+      <tr><td><code>sim_save_reset</code></td><td>리셋 상태 저장</td></tr>
+      <tr><td><code>check_fv -block</code></td><td>FPV 검증 실행 (blocking)</td></tr>
+      <tr><td><code>check_seq_equiv -block</code></td><td>SEC 검증 실행 (blocking)</td></tr>
+      <tr><td><code>report_fv -list / -verbose</code></td><td>FPV 결과 리포트</td></tr>
+      <tr><td><code>report_seq_equiv</code></td><td>SEC 결과 리포트</td></tr>
+    </table>
+
+    <h3>디렉토리 구조</h3>
+    <pre><code>vcformal/
+├── .gitignore
+├── fpv/
+│   ├── rtl/arbiter_rr.sv       <span class="cmt"># Round-Robin Arbiter</span>
+│   ├── sva/arbiter_props.sv    <span class="cmt"># SVA Assertions + Bind</span>
+│   ├── run.tcl                 <span class="cmt"># FPV TCL script</span>
+│   └── Makefile
+├── sec/
+│   ├── rtl/madd_pipe2.sv       <span class="cmt"># Spec: 2-stage pipeline</span>
+│   ├── rtl/madd_pipe3.sv       <span class="cmt"># Impl: 3-stage pipeline</span>
+│   ├── run.tcl                 <span class="cmt"># SEC TCL script</span>
+│   └── Makefile
+└── docs/
+    ├── workflow.md
+    └── vcformal_workflow_viz.html</code></pre>
+
+    <h3>서버 정보</h3>
+    <table>
+      <tr><td>Server</td><td>Remote build server</td></tr>
+      <tr><td>Formality</td><td>V-2023.12-SP5 &mdash; <code>/data/tools_snps/snps/fm/V-2023.12-SP5/bin/fm_shell</code></td></tr>
+      <tr><td>VC Formal</td><td>V-2023.12-SP2-4 &mdash; <code>/data/tools_snps/snps/vc_static/V-2023.12-SP2-4/bin/vcf</code></td></tr>
+      <tr><td>Workspace</td><td><code>~/work/2026-04-02_vcformal/vcformal/</code></td></tr>
+      <tr><td>License</td><td>Formality (LEC) <span class="badge badge-proven">O 5석</span>, VC Formal (FPV/SEC) <span class="badge badge-fail">X</span></td></tr>
+    </table>
+
+    <h3>트러블슈팅</h3>
+    <table>
+      <tr><th>에러</th><th>원인</th><th>해결</th></tr>
+      <tr>
+        <td><code>LICENSE_CHECKOUT_ERROR: fml_fv</code></td>
+        <td>VC Formal 라이선스 미보유</td>
+        <td>IT에 fml_base/ultra/elite 라이선스 요청</td>
+      </tr>
+      <tr>
+        <td><code>Design already loaded</code></td>
+        <td>read_file 중복 호출</td>
+        <td>한 번에 모든 파일 로드</td>
+      </tr>
+      <tr>
+        <td><code>VC_STATIC_HOME not set</code></td>
+        <td>환경변수 미설정</td>
+        <td>export VC_STATIC_HOME=...</td>
+      </tr>
+      <tr>
+        <td><code>restore_session</code> 에러</td>
+        <td>이전 세션 잔여</td>
+        <td><code>-no_restore</code> 플래그 또는 <code>rm -rf vcst_rtdb*</code></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<script>
+// Tab navigation
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// LEC detail panels
+function showLecDetail(id) {
+  const panels = ['ref','impl','match','verify','result'];
+  panels.forEach(p => {
+    const el = document.getElementById('lec-' + p);
+    if (p === id) el.classList.toggle('active');
+    else el.classList.remove('active');
+  });
+}
+
+// FPV detail panels
+function showFpvDetail(id) {
+  const panels = ['rtl','sva','tcl','run','result'];
+  panels.forEach(p => {
+    const el = document.getElementById('fpv-' + p);
+    if (p === id) {
+      el.classList.toggle('active');
+      if (p === 'sva' && el.classList.contains('active')) {
+        setTimeout(initWaveform, 100);
+      }
+    } else {
+      el.classList.remove('active');
+    }
+  });
+}
+
+// SEC detail panels
+function showSecDetail(id) {
+  const panels = ['spec','impl','tcl','latency','result'];
+  panels.forEach(p => {
+    const el = document.getElementById('sec-' + p);
+    if (p === id) {
+      el.classList.toggle('active');
+      if (p === 'latency' && el.classList.contains('active')) {
+        setTimeout(initPipeline, 100);
+      }
+    } else {
+      el.classList.remove('active');
+    }
+  });
+}
+
+// ============ SVA Waveform Animation ============
+let waveAnimId = null;
+let waveFrame = 0;
+
+function initWaveform() {
+  const canvas = document.getElementById('wave-grant');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.parentElement.clientWidth - 32;
+  drawWaveform(ctx, canvas.width, canvas.height, 0);
+}
+
+function drawWaveform(ctx, w, h, frame) {
+  ctx.clearRect(0, 0, w, h);
+  const cycles = 10;
+  const cw = (w - 60) / cycles; // cycle width
+  const ox = 60; // offset x
+
+  // Colors
+  const clkColor = '#94a3b8';
+  const reqColor = '#38bdf8';
+  const gntColor = '#34d399';
+  const windowColor = 'rgba(251, 191, 36, 0.15)';
+  const windowBorder = '#fbbf24';
+
+  // Labels
+  ctx.font = '12px monospace';
+  ctx.fillStyle = clkColor;
+  ctx.fillText('clk', 5, 25);
+  ctx.fillStyle = reqColor;
+  ctx.fillText('req', 5, 60);
+  ctx.fillStyle = gntColor;
+  ctx.fillText('gnt', 5, 100);
+
+  // Cycle numbers
+  ctx.fillStyle = '#475569';
+  ctx.font = '10px monospace';
+  for (let i = 0; i < cycles; i++) {
+    ctx.fillText(i + 1, ox + i * cw + cw/2 - 4, h - 5);
+  }
+
+  // Clock
+  ctx.strokeStyle = clkColor;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < cycles; i++) {
+    const x = ox + i * cw;
+    ctx.moveTo(x, 30); ctx.lineTo(x, 10);
+    ctx.lineTo(x + cw * 0.5, 10); ctx.lineTo(x + cw * 0.5, 30);
+    ctx.lineTo(x + cw, 30);
+  }
+  ctx.stroke();
+
+  // req signal: goes high at cycle 3, stays high
+  const reqStart = 2; // cycle index (0-based)
+  ctx.strokeStyle = reqColor;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(ox, 65);
+  for (let i = 0; i < cycles; i++) {
+    const x = ox + i * cw;
+    if (i === reqStart) {
+      ctx.lineTo(x, 65); ctx.lineTo(x, 45);
+    }
+    const y = i >= reqStart ? 45 : 65;
+    ctx.lineTo(x + cw, y);
+  }
+  ctx.stroke();
+
+  // Checking window highlight (cycles 3-6, i.e. ##[0:3] from req)
+  const animCycle = Math.min(Math.floor(frame / 15), 3);
+  if (frame > 0) {
+    // Window background
+    ctx.fillStyle = windowColor;
+    ctx.fillRect(ox + reqStart * cw, 38, (animCycle + 1) * cw, 75);
+    // Window border
+    ctx.strokeStyle = windowBorder;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(ox + reqStart * cw, 38, (Math.min(animCycle + 1, 4)) * cw, 75);
+    ctx.setLineDash([]);
+
+    // Window label
+    ctx.fillStyle = windowBorder;
+    ctx.font = '10px monospace';
+    ctx.fillText('##[0:3] window', ox + reqStart * cw + 5, h - 18);
+  }
+
+  // gnt signal: goes high at cycle (reqStart + animCycle) if animation running
+  const gntCycle = reqStart + Math.min(animCycle, 2); // grant within window
+  ctx.strokeStyle = gntColor;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(ox, 105);
+  for (let i = 0; i < cycles; i++) {
+    const x = ox + i * cw;
+    if (frame > 0 && i === gntCycle) {
+      ctx.lineTo(x, 105); ctx.lineTo(x, 85);
+    }
+    if (frame > 0 && i === gntCycle + 1) {
+      ctx.lineTo(x, 85); ctx.lineTo(x, 105);
+    }
+    const y = (frame > 0 && i >= gntCycle && i < gntCycle + 1) ? 85 : 105;
+    ctx.lineTo(x + cw, y);
+  }
+  ctx.stroke();
+
+  // Result badge
+  if (frame > 30) {
+    ctx.fillStyle = '#34d399';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('PROVEN', w - 65, 25);
+  }
+}
+
+function startWaveform(btn) {
+  if (waveAnimId) {
+    cancelAnimationFrame(waveAnimId);
+    waveAnimId = null;
+    btn.textContent = 'Play';
+    btn.classList.remove('active');
+    return;
+  }
+  btn.textContent = 'Pause';
+  btn.classList.add('active');
+  waveFrame = 0;
+
+  const canvas = document.getElementById('wave-grant');
+  const ctx = canvas.getContext('2d');
+
+  function animate() {
+    waveFrame++;
+    drawWaveform(ctx, canvas.width, canvas.height, waveFrame);
+    if (waveFrame < 80) {
+      waveAnimId = requestAnimationFrame(animate);
+    } else {
+      waveAnimId = null;
+      btn.textContent = 'Play';
+      btn.classList.remove('active');
+    }
+  }
+  waveAnimId = requestAnimationFrame(animate);
+}
+
+function resetWaveform() {
+  if (waveAnimId) cancelAnimationFrame(waveAnimId);
+  waveAnimId = null;
+  waveFrame = 0;
+  const canvas = document.getElementById('wave-grant');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    drawWaveform(ctx, canvas.width, canvas.height, 0);
+  }
+  const btn = document.querySelector('#fpv-sva .wave-btn');
+  if (btn) { btn.textContent = 'Play'; btn.classList.remove('active'); }
+}
+
+// ============ Pipeline Animation ============
+let pipeAnimId = null;
+let pipeCycle = 0;
+
+function initPipeline() {
+  renderPipeline(0);
+}
+
+function renderPipeline(cycle) {
+  // Spec: 2-stage pipeline
+  const specEl = document.getElementById('pipe-spec');
+  const specStages = [];
+  for (let c = 0; c <= Math.min(cycle, 7); c++) {
+    // Data enters at each cycle, flows through 2 stages
+    // Stage 1 (mul): active when data is at stage 1
+    // Stage 2 (add): active when data is at stage 2
+  }
+
+  let specHTML = '';
+  for (let s = 0; s < 2; s++) {
+    const label = s === 0 ? 'Stage 1' : 'Stage 2';
+    const op = s === 0 ? 'a*b, reg c' : 'mul+c';
+    const barClass = s === 0 ? 'bar-mul' : 'bar-add';
+
+    // Check if any data is at this stage
+    let hasData = false;
+    let dataLabel = '';
+    for (let d = 0; d <= cycle; d++) {
+      if (cycle - d === s) {
+        hasData = true;
+        dataLabel = 'D' + (d + 1);
+        break;
+      }
+    }
+
+    specHTML += `<div class="pipe-stage">
+      <span class="label">${label}</span>
+      <div class="bar ${hasData ? barClass + ' active' : 'bar-empty'}">${hasData ? dataLabel + ': ' + op : ''}</div>
+    </div>`;
+  }
+  // Output
+  let specOut = '';
+  for (let d = 0; d <= cycle; d++) {
+    if (cycle - d === 2) {
+      specOut = 'R' + (d + 1);
+      break;
+    }
+  }
+  specHTML += `<div class="pipe-stage">
+    <span class="label">Output</span>
+    <div class="bar ${specOut ? 'bar-result active' : 'bar-empty'}">${specOut ? specOut + ' = (a*b)+c' : ''}</div>
+  </div>`;
+  specEl.innerHTML = specHTML;
+
+  // Impl: 3-stage pipeline
+  const implEl = document.getElementById('pipe-impl');
+  let implHTML = '';
+  const implOps = ['reg inputs', 'a_reg*b_reg', 'mul+c_reg2'];
+  const implBars = ['bar-reg', 'bar-mul', 'bar-add'];
+  for (let s = 0; s < 3; s++) {
+    const label = 'Stage ' + (s + 1);
+    let hasData = false;
+    let dataLabel = '';
+    for (let d = 0; d <= cycle; d++) {
+      if (cycle - d === s) {
+        hasData = true;
+        dataLabel = 'D' + (d + 1);
+        break;
+      }
+    }
+    implHTML += `<div class="pipe-stage">
+      <span class="label">${label}</span>
+      <div class="bar ${hasData ? implBars[s] + ' active' : 'bar-empty'}">${hasData ? dataLabel + ': ' + implOps[s] : ''}</div>
+    </div>`;
+  }
+  let implOut = '';
+  for (let d = 0; d <= cycle; d++) {
+    if (cycle - d === 3) {
+      implOut = 'R' + (d + 1);
+      break;
+    }
+  }
+  implHTML += `<div class="pipe-stage">
+    <span class="label">Output</span>
+    <div class="bar ${implOut ? 'bar-result active' : 'bar-empty'}">${implOut ? implOut + ' = (a*b)+c' : ''}</div>
+  </div>`;
+  implEl.innerHTML = implHTML;
+
+  document.getElementById('pipe-cycle').textContent = 'Cycle: ' + cycle;
+}
+
+function startPipelineAnim() {
+  const btn = document.getElementById('pipe-play-btn');
+  if (pipeAnimId) {
+    clearInterval(pipeAnimId);
+    pipeAnimId = null;
+    btn.textContent = 'Play Animation';
+    return;
+  }
+  pipeCycle = 0;
+  btn.textContent = 'Pause';
+  pipeAnimId = setInterval(() => {
+    pipeCycle++;
+    renderPipeline(pipeCycle);
+    if (pipeCycle >= 8) {
+      clearInterval(pipeAnimId);
+      pipeAnimId = null;
+      btn.textContent = 'Play Animation';
+    }
+  }, 800);
+}
+
+function resetPipelineAnim() {
+  if (pipeAnimId) clearInterval(pipeAnimId);
+  pipeAnimId = null;
+  pipeCycle = 0;
+  renderPipeline(0);
+  document.getElementById('pipe-play-btn').textContent = 'Play Animation';
+}
+
+// Initialize on load
+window.addEventListener('resize', () => {
+  if (document.getElementById('fpv-sva').classList.contains('active')) initWaveform();
+});
+</script>
+
+</body>
+</html>
