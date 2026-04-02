@@ -411,14 +411,12 @@
       <span class="flow-arrow">&rarr;</span>
       <div class="flow-box flow-process" onclick="showLecDetail('verify')">Verify</div>
       <span class="flow-arrow">&rarr;</span>
-      <div class="flow-box flow-output-pass" onclick="showLecDetail('result')">SUCCEEDED</div>
+      <div class="flow-box flow-output-pass" onclick="showLecDetail('result')">결과 분석</div>
     </div>
 
     <!-- Feedback Loop -->
     <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.5rem;">
       <div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;justify-content:center;">
-        <div class="flow-box flow-output-pass" style="min-width:110px;cursor:default;font-size:0.8rem;"><strong>SUCCEEDED</strong><br>검증 완료</div>
-        <div style="color:var(--text-dim);font-size:0.85rem;padding:0 0.5rem;">|</div>
         <div class="flow-box flow-output-fail" style="min-width:110px;cursor:default;font-size:0.8rem;"><strong>FAILED</strong><br>failing points</div>
         <span class="flow-arrow">&rarr;</span>
         <div style="font-size:0.82rem;color:var(--text-dim);text-align:center;">report_failing_points<br><small>실패 cone 분석</small></div>
@@ -633,8 +631,6 @@ Memory: <span class="num">938</span> MB</code></pre>
     <!-- Feedback Loop -->
     <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.5rem;">
       <div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;justify-content:center;">
-        <div class="flow-box flow-output-pass" style="min-width:100px;cursor:default;font-size:0.8rem;"><strong>Proven</strong><br>검증 완료</div>
-        <div style="color:var(--text-dim);font-size:0.85rem;padding:0 0.5rem;">|</div>
         <div class="flow-box flow-output-fail" style="min-width:100px;cursor:default;font-size:0.8rem;"><strong>Falsified</strong><br>반례 발견</div>
         <span class="flow-arrow">&rarr;</span>
         <div style="font-size:0.82rem;color:var(--text-dim);text-align:center;">파형 분석<br><small>counterexample</small></div>
@@ -939,14 +935,12 @@ Latch Bitwise   = <span class="num">0</span>
       <span class="flow-arrow">&rarr;</span>
       <div class="flow-box flow-process" onclick="showSecDetail('latency')">Latency 설정</div>
       <span class="flow-arrow">&rarr;</span>
-      <div class="flow-box flow-output-pass" onclick="showSecDetail('result')">동등성 판정</div>
+      <div class="flow-box flow-output-pass" onclick="showSecDetail('result')">결과 분석</div>
     </div>
 
     <!-- Feedback Loop -->
     <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.5rem;">
       <div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;justify-content:center;">
-        <div class="flow-box flow-output-pass" style="min-width:110px;cursor:default;font-size:0.8rem;"><strong>Equivalent</strong><br>동등성 증명</div>
-        <div style="color:var(--text-dim);font-size:0.85rem;padding:0 0.5rem;">|</div>
         <div class="flow-box flow-output-fail" style="min-width:110px;cursor:default;font-size:0.8rem;"><strong>Non-equiv</strong><br>반례 발견</div>
         <span class="flow-arrow">&rarr;</span>
         <div style="font-size:0.82rem;color:var(--text-dim);text-align:center;">counterexample<br><small>파형 분석</small></div>
