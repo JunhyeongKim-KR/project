@@ -414,6 +414,33 @@
       <div class="flow-box flow-output-pass" onclick="showLecDetail('result')">SUCCEEDED</div>
     </div>
 
+    <!-- Feedback Loop -->
+    <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.5rem;">
+      <div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;justify-content:center;">
+        <div class="flow-box flow-output-pass" style="min-width:110px;cursor:default;font-size:0.8rem;"><strong>SUCCEEDED</strong><br>검증 완료</div>
+        <div style="color:var(--text-dim);font-size:0.85rem;padding:0 0.5rem;">|</div>
+        <div class="flow-box flow-output-fail" style="min-width:110px;cursor:default;font-size:0.8rem;"><strong>FAILED</strong><br>failing points</div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="font-size:0.82rem;color:var(--text-dim);text-align:center;">report_failing_points<br><small>실패 cone 분석</small></div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="display:flex;flex-direction:column;gap:0.3rem;">
+          <div style="font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--accent3);border-radius:6px;color:var(--accent3);text-align:center;">Impl 로직 수정</div>
+          <div style="font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--accent2);border-radius:6px;color:var(--accent2);text-align:center;">Port mapping 확인</div>
+        </div>
+        <span class="flow-arrow" style="color:var(--fail);">&circlearrowleft;</span>
+        <div style="font-size:0.8rem;color:var(--fail);font-weight:600;">재실행</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;justify-content:center;margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--border);">
+        <div style="padding:0.3rem 0.8rem;border:1px solid var(--warn);border-radius:6px;color:var(--warn);font-size:0.8rem;"><strong>Unmatched</strong></div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="font-size:0.82rem;color:var(--text-dim);text-align:center;">report_unmatched_points</div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--warn);border-radius:6px;color:var(--warn);text-align:center;">레지스터명/구조 맞춤</div>
+        <span class="flow-arrow" style="color:var(--warn);">&circlearrowleft;</span>
+        <div style="font-size:0.8rem;color:var(--warn);font-weight:600;">match 재실행</div>
+      </div>
+    </div>
+
     <!-- LEC Concept -->
     <div id="lec-ref" class="detail-panel">
       <h3>Reference: data_proc.sv (직관적 구현)</h3>
@@ -598,6 +625,33 @@ Memory: <span class="num">938</span> MB</code></pre>
       <div class="flow-box flow-process" onclick="showFpvDetail('run')">VCF 실행</div>
       <span class="flow-arrow">&rarr;</span>
       <div class="flow-box flow-output-pass" onclick="showFpvDetail('result')">결과 분석</div>
+    </div>
+
+    <!-- Feedback Loop -->
+    <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.5rem;">
+      <div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;justify-content:center;">
+        <div class="flow-box flow-output-pass" style="min-width:100px;cursor:default;font-size:0.8rem;"><strong>Proven</strong><br>검증 완료</div>
+        <div style="color:var(--text-dim);font-size:0.85rem;padding:0 0.5rem;">|</div>
+        <div class="flow-box flow-output-fail" style="min-width:100px;cursor:default;font-size:0.8rem;"><strong>Falsified</strong><br>반례 발견</div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="font-size:0.82rem;color:var(--text-dim);text-align:center;">파형 분석<br><small>counterexample</small></div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="display:flex;flex-direction:column;gap:0.3rem;">
+          <div style="font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--accent1);border-radius:6px;color:var(--accent1);text-align:center;">RTL 버그 수정</div>
+          <div style="font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--accent2);border-radius:6px;color:var(--accent2);text-align:center;">SVA 과제약 수정</div>
+        </div>
+        <span class="flow-arrow" style="color:var(--fail);">&circlearrowleft;</span>
+        <div style="font-size:0.8rem;color:var(--fail);font-weight:600;">재실행</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;justify-content:center;margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--border);">
+        <div style="padding:0.3rem 0.8rem;border:1px solid var(--warn);border-radius:6px;color:var(--warn);font-size:0.8rem;"><strong>Bounded</strong></div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="font-size:0.82rem;color:var(--text-dim);text-align:center;">N cycle까지만 증명</div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--warn);border-radius:6px;color:var(--warn);text-align:center;">auxiliary invariant 추가</div>
+        <span class="flow-arrow" style="color:var(--warn);">&circlearrowleft;</span>
+        <div style="font-size:0.8rem;color:var(--warn);font-weight:600;">unbounded 재시도</div>
+      </div>
     </div>
 
     <!-- RTL Detail -->
@@ -879,6 +933,34 @@ Latch Bitwise   = <span class="num">0</span>
       <div class="flow-box flow-process" onclick="showSecDetail('latency')">Latency 설정</div>
       <span class="flow-arrow">&rarr;</span>
       <div class="flow-box flow-output-pass" onclick="showSecDetail('result')">동등성 판정</div>
+    </div>
+
+    <!-- Feedback Loop -->
+    <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.5rem;">
+      <div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;justify-content:center;">
+        <div class="flow-box flow-output-pass" style="min-width:110px;cursor:default;font-size:0.8rem;"><strong>Equivalent</strong><br>동등성 증명</div>
+        <div style="color:var(--text-dim);font-size:0.85rem;padding:0 0.5rem;">|</div>
+        <div class="flow-box flow-output-fail" style="min-width:110px;cursor:default;font-size:0.8rem;"><strong>Non-equiv</strong><br>반례 발견</div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="font-size:0.82rem;color:var(--text-dim);text-align:center;">counterexample<br><small>파형 분석</small></div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="display:flex;flex-direction:column;gap:0.3rem;">
+          <div style="font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--accent4);border-radius:6px;color:var(--accent4);text-align:center;">Impl 변환 오류 수정</div>
+          <div style="font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--accent2);border-radius:6px;color:var(--accent2);text-align:center;">Latency offset 재확인</div>
+          <div style="font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--accent1);border-radius:6px;color:var(--accent1);text-align:center;">Port mapping 수정</div>
+        </div>
+        <span class="flow-arrow" style="color:var(--fail);">&circlearrowleft;</span>
+        <div style="font-size:0.8rem;color:var(--fail);font-weight:600;">재실행</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;justify-content:center;margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid var(--border);">
+        <div style="padding:0.3rem 0.8rem;border:1px solid var(--warn);border-radius:6px;color:var(--warn);font-size:0.8rem;"><strong>Bounded</strong></div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="font-size:0.82rem;color:var(--text-dim);text-align:center;">N cycle까지만 동등</div>
+        <span class="flow-arrow">&rarr;</span>
+        <div style="font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--warn);border-radius:6px;color:var(--warn);text-align:center;">auxiliary lemma 추가</div>
+        <span class="flow-arrow" style="color:var(--warn);">&circlearrowleft;</span>
+        <div style="font-size:0.8rem;color:var(--warn);font-weight:600;">unbounded 재시도</div>
+      </div>
     </div>
 
     <!-- Spec Detail -->
