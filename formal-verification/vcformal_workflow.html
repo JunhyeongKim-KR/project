@@ -377,18 +377,18 @@
 <body>
 
 <h1>Formal Verification Workflow</h1>
-<p class="subtitle">FPV (Model Checking) / LEC (Formality) / SEC (Sequential Equivalence) - Practical Guide</p>
+<p class="subtitle">LEC (Formality) / SEC (Sequential Equivalence) / FPV (Model Checking) - Practical Guide</p>
 
 <div class="tab-nav">
-  <button class="tab-btn active" onclick="showTab('fpv')">FPV Workflow</button>
-  <button class="tab-btn" onclick="showTab('lec')">LEC Workflow</button>
+  <button class="tab-btn active" onclick="showTab('lec')">LEC Workflow</button>
   <button class="tab-btn" onclick="showTab('sec')">SEC Workflow</button>
-  <button class="tab-btn" onclick="showTab('compare')">FPV vs LEC vs SEC</button>
+  <button class="tab-btn" onclick="showTab('fpv')">FPV Workflow</button>
+  <button class="tab-btn" onclick="showTab('compare')">LEC vs SEC vs FPV</button>
   <button class="tab-btn" onclick="showTab('ref')">Quick Reference</button>
 </div>
 
 <!-- ==================== TAB: LEC ==================== -->
-<div id="tab-lec" class="tab-content">
+<div id="tab-lec" class="tab-content active">
 
   <div class="card">
     <h2>LEC 실행 Flow (Formality)</h2>
@@ -602,7 +602,7 @@ Memory: <span class="num">938</span> MB</code></pre>
 </div>
 
 <!-- ==================== TAB: FPV ==================== -->
-<div id="tab-fpv" class="tab-content active">
+<div id="tab-fpv" class="tab-content">
 
   <div class="card">
     <h2>FPV 실행 Flow</h2>
@@ -1160,73 +1160,73 @@ Comb logic      = <span class="num">20</span>
 <!-- ==================== TAB 3: Comparison ==================== -->
 <div id="tab-compare" class="tab-content">
   <div class="card">
-    <h2>FPV vs LEC vs SEC 비교</h2>
+    <h2>LEC vs SEC vs FPV 비교</h2>
 
     <table>
       <tr>
         <th>항목</th>
-        <th style="color:var(--accent1)">FPV (Model Checking)</th>
         <th style="color:var(--accent3)">LEC</th>
         <th style="color:var(--accent4)">SEC</th>
+        <th style="color:var(--accent1)">FPV (Model Checking)</th>
       </tr>
       <tr>
         <td><strong>핵심 질문</strong></td>
-        <td>"속성이 항상 성립하는가?"</td>
         <td>"조합 로직이 동일한가?"</td>
         <td>"시퀀셜 동작이 동일한가?"</td>
+        <td>"속성이 항상 성립하는가?"</td>
       </tr>
       <tr>
         <td><strong>입력</strong></td>
-        <td>RTL + SVA Properties</td>
         <td>Ref RTL + Impl RTL/Netlist</td>
         <td>Spec RTL + Impl RTL</td>
+        <td>RTL + SVA Properties</td>
       </tr>
       <tr>
         <td><strong>출력</strong></td>
-        <td>Proven / Falsified / Bounded</td>
         <td>SUCCEEDED / FAILED</td>
         <td>Equivalent / Non-equivalent</td>
+        <td>Proven / Falsified / Bounded</td>
       </tr>
       <tr>
         <td><strong>레지스터 매칭</strong></td>
-        <td>해당 없음</td>
         <td>필수 (1:1)</td>
         <td>불필요</td>
+        <td>해당 없음</td>
       </tr>
       <tr>
         <td><strong>SVA 필요</strong></td>
+        <td>불필요</td>
+        <td>불필요</td>
         <td>필수 (사용자 작성)</td>
-        <td>불필요</td>
-        <td>불필요</td>
       </tr>
       <tr>
         <td><strong>주 용도</strong></td>
-        <td>설계 의도, 프로토콜 준수</td>
         <td>합성 후 netlist 검증</td>
         <td>Retiming, Clock gating, Pipeline</td>
+        <td>설계 의도, 프로토콜 준수</td>
       </tr>
       <tr>
         <td><strong>속도</strong></td>
-        <td><span class="badge badge-bounded">분~시간</span></td>
         <td><span class="badge badge-proven">초~분</span></td>
         <td><span class="badge badge-fail">분~시간+</span></td>
+        <td><span class="badge badge-bounded">분~시간</span></td>
       </tr>
       <tr>
         <td><strong>도구</strong></td>
-        <td>VC Formal (vcf -fmode FPV)</td>
         <td>Formality (fm_shell)</td>
         <td>VC Formal (vcf -fmode SEQ)</td>
+        <td>VC Formal (vcf -fmode FPV)</td>
       </tr>
       <tr>
         <td><strong>핵심 명령</strong></td>
-        <td><code>check_fv</code></td>
         <td><code>match</code> + <code>verify</code></td>
         <td><code>check_seq_equiv</code></td>
+        <td><code>check_fv</code></td>
       </tr>
       <tr>
         <td><strong>라이선스 (현재)</strong></td>
-        <td><span class="badge badge-fail">X</span></td>
         <td><span class="badge badge-proven">O (5석)</span></td>
+        <td><span class="badge badge-fail">X</span></td>
         <td><span class="badge badge-fail">X</span></td>
       </tr>
     </table>
