@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Step 0: 왜 SEC를 쓰는가?</title>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface2: #334155; --border: #475569;
+    --text: #e2e8f0; --dim: #94a3b8;
+    --blue: #38bdf8; --green: #34d399; --orange: #f59e0b; --fail: #f87171;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; padding:2rem; }
+
+  h1 { text-align:center; font-size:1.8rem; margin-bottom:0.3rem;
+    background:linear-gradient(135deg,var(--blue),var(--orange));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .sub { text-align:center; color:var(--dim); margin-bottom:2rem; }
+
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.5rem; margin-bottom:1.5rem; }
+  .card h2 { font-size:1.2rem; margin-bottom:1rem; }
+  .card h3 { font-size:1rem; margin:1rem 0 0.5rem; }
+
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+  .three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1.2rem; }
+  @media (max-width:900px) { .three-col { grid-template-columns:1fr; } }
+  @media (max-width:700px) { .two-col { grid-template-columns:1fr; } }
+
+  .box { background:#0d1117; border-radius:8px; padding:1.2rem; border:1px solid var(--border); }
+
+  .formula { background:#0d1117; border:1px solid var(--border); border-radius:8px;
+    padding:1rem; text-align:center; font-size:1.1rem; margin:0.8rem 0; font-family:monospace; }
+
+  .btn-group { display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap; margin:0.8rem 0; }
+  .btn { padding:0.5rem 1.2rem; border-radius:8px; cursor:pointer; font-size:0.85rem;
+    border:1px solid var(--border); background:var(--surface2); color:var(--text); transition:all 0.2s; }
+  .btn:hover { border-color:var(--orange); transform:translateY(-1px); }
+  .btn:active { transform:translateY(1px); }
+
+  table { width:100%; border-collapse:collapse; font-size:0.88rem; margin:1rem 0; }
+  th { background:var(--surface2); padding:0.6rem; text-align:left; border-bottom:2px solid var(--border); }
+  td { padding:0.5rem 0.6rem; border-bottom:1px solid var(--border); }
+
+  .sim-box { background:#0d1117; border:1px solid var(--border); border-radius:8px; padding:1rem; margin:0.8rem 0; }
+
+  .tag { display:inline-block; padding:0.15rem 0.5rem; border-radius:4px; font-size:0.75rem; font-weight:600; }
+  .tag-fpv { background:rgba(56,189,248,0.2); color:var(--blue); border:1px solid var(--blue); }
+  .tag-lec { background:rgba(52,211,153,0.2); color:var(--green); border:1px solid var(--green); }
+  .tag-sec { background:rgba(245,158,11,0.2); color:var(--orange); border:1px solid var(--orange); }
+
+  /* Pillar cards */
+  .pillar-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:1.2rem; cursor:pointer; transition:all 0.3s; position:relative; overflow:hidden;
+  }
+  .pillar-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,0.3); }
+  .pillar-card .pillar-header { display:flex; align-items:center; gap:0.6rem; margin-bottom:0.8rem; }
+  .pillar-card .pillar-icon { font-size:1.5rem; width:40px; height:40px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .pillar-card .pillar-title { font-size:1.05rem; font-weight:700; }
+  .pillar-card .pillar-question { font-size:0.92rem; margin-bottom:0.6rem; padding:0.5rem;
+    background:rgba(0,0,0,0.3); border-radius:6px; }
+  .pillar-card .pillar-summary { font-size:0.82rem; color:var(--dim); line-height:1.5; }
+  .pillar-card .pillar-detail { max-height:0; overflow:hidden; transition:max-height 0.4s ease; }
+  .pillar-card.expanded .pillar-detail { max-height:400px; }
+  .pillar-card .expand-hint { text-align:center; color:var(--dim); font-size:0.75rem; margin-top:0.5rem; }
+  .pillar-card.expanded .expand-hint { display:none; }
+
+  /* Retiming visualization */
+  .circuit-box { background:#0d1117; border:1px solid var(--border); border-radius:8px;
+    padding:1rem; margin:0.5rem 0; }
+  .circuit-row { display:flex; align-items:center; gap:0.3rem; flex-wrap:wrap; justify-content:center; margin:0.4rem 0; }
+  .circuit-el { padding:0.35rem 0.7rem; border-radius:6px; font-size:0.82rem; font-family:monospace; font-weight:600; }
+  .circuit-ff { background:rgba(56,189,248,0.2); border:1px solid var(--blue); color:var(--blue); }
+  .circuit-comb { background:rgba(148,163,184,0.1); border:1px solid var(--dim); color:var(--dim); }
+  .circuit-arrow { color:var(--dim); font-size:1rem; }
+  .circuit-label { font-size:0.78rem; color:var(--dim); text-align:center; margin-top:0.3rem; }
+
+  /* Verdict badges */
+  .verdict { display:inline-block; padding:0.2rem 0.6rem; border-radius:4px; font-size:0.8rem; font-weight:700; }
+  .verdict-pass { background:rgba(52,211,153,0.2); color:var(--green); border:1px solid var(--green); }
+  .verdict-fail { background:rgba(248,113,113,0.2); color:var(--fail); border:1px solid var(--fail); }
+
+  /* Warning box */
+  .warning-box { background:rgba(248,113,113,0.08); border:2px solid var(--fail); border-radius:12px;
+    padding:1.2rem; margin:1rem 0; }
+  .warning-box .warning-title { color:var(--fail); font-size:1.05rem; font-weight:700; margin-bottom:0.5rem;
+    display:flex; align-items:center; gap:0.5rem; }
+
+  /* Flow diagram */
+  .flow-container { display:flex; align-items:center; gap:0; overflow-x:auto; padding:1rem 0; justify-content:center; flex-wrap:wrap; }
+  .flow-step { padding:0.7rem 1rem; border-radius:8px; font-size:0.82rem; font-weight:600;
+    cursor:pointer; transition:all 0.3s; text-align:center; min-width:100px; position:relative; border:1px solid var(--border); }
+  .flow-step:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+  .flow-step.active { box-shadow:0 0 16px rgba(255,255,255,0.1); }
+  .flow-arrow { color:var(--dim); font-size:1.2rem; padding:0 0.3rem; flex-shrink:0; }
+  .flow-detail { background:#0d1117; border:1px solid var(--border); border-radius:8px;
+    padding:1rem; margin-top:1rem; min-height:60px; transition:all 0.3s; }
+
+  /* Link box */
+  .link-box { background:linear-gradient(135deg, rgba(56,189,248,0.08), rgba(245,158,11,0.08));
+    border:1px solid var(--border); border-radius:12px; padding:1.5rem; text-align:center; margin-top:1.5rem; }
+  .link-box a { display:inline-block; padding:0.7rem 2rem; border-radius:8px; font-size:0.95rem;
+    font-weight:600; text-decoration:none; transition:all 0.3s; margin-top:0.8rem;
+    background:var(--orange); color:#0f172a; border:none; }
+  .link-box a:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(245,158,11,0.3); }
+
+  /* Key message */
+  .key-message { display:grid; grid-template-columns:repeat(4,1fr); gap:0.8rem; margin:1.5rem 0; }
+  @media (max-width:700px) { .key-message { grid-template-columns:1fr 1fr; } }
+  .key-item { text-align:center; padding:0.8rem; border-radius:8px; background:rgba(0,0,0,0.3);
+    border:1px solid var(--border); }
+  .key-item .key-label { font-size:0.78rem; color:var(--dim); margin-top:0.3rem; }
+  .key-item .key-val { font-size:0.88rem; font-weight:700; }
+</style>
+</head>
+<body>
+
+<p style="margin-bottom:0.5rem;">
+  <a href="index.html" style="color:var(--dim);text-decoration:none;font-size:0.85rem;">&larr; Formal Verification Home</a>
+  <span style="color:var(--dim);font-size:0.85rem;"> &nbsp;|&nbsp; </span>
+  <a href="step1_fsm_modeling.html" style="color:var(--dim);text-decoration:none;font-size:0.85rem;">Step 1: FSM 모델링 &rarr;</a>
+</p>
+<h1>Step 0: 왜 SEC를 쓰는가?</h1>
+<p class="sub">Formal Verification의 세 기둥과 SEC의 위치</p>
+
+<!-- ============ Section 1: Three Pillars ============ -->
+<div class="card">
+  <h2>Formal Verification의 세 가지 질문</h2>
+  <p style="color:var(--dim);margin-bottom:1.2rem;">Formal Verification은 세 가지 근본 질문에 답합니다. 각 카드를 클릭하면 상세 내용이 펼쳐집니다.</p>
+
+  <div class="three-col">
+    <!-- FPV -->
+    <div class="pillar-card" id="card-fpv" onclick="togglePillar('fpv')" style="border-top:3px solid var(--blue);">
+      <div class="pillar-header">
+        <div class="pillar-icon" style="background:rgba(56,189,248,0.15);color:var(--blue);">P</div>
+        <div>
+          <div class="pillar-title" style="color:var(--blue);">FPV</div>
+          <div style="font-size:0.72rem;color:var(--dim);">Property Verification</div>
+        </div>
+      </div>
+      <div class="pillar-question" style="border-left:3px solid var(--blue);">
+        <strong style="color:var(--blue);">"설계 A &#8872; 속성 P?"</strong><br>
+        <span style="color:var(--dim);font-size:0.82rem;">이 설계가 올바른가?</span>
+      </div>
+      <div class="pillar-summary">
+        <strong>입력:</strong> 설계 1개 + SVA assertions<br>
+        <strong>찾는 것:</strong> 설계 자체의 버그<br>
+        <strong>비유:</strong> "시험 답안이 정답인가?" (정답지 = SVA)
+      </div>
+      <div class="pillar-detail" id="detail-fpv">
+        <div style="border-top:1px solid var(--border);margin-top:0.8rem;padding-top:0.8rem;font-size:0.82rem;color:var(--dim);line-height:1.7;">
+          FPV는 설계에 대해 <strong style="color:var(--blue);">수학적 속성(assertion)</strong>이 항상 성립하는지 증명합니다.<br><br>
+          예: <code style="color:var(--blue);">assert property (@(posedge clk) req |-> ##\[1:3\] gnt);</code><br>
+          "req가 오면 1~3 사이클 내에 gnt가 반드시 나가야 한다"<br><br>
+          <strong>모든 가능한 입력 시퀀스</strong>에 대해 검증하므로, 시뮬레이션으로 잡지 못하는 코너 케이스 버그를 찾아냅니다.
+        </div>
+      </div>
+      <div class="expand-hint">클릭하여 자세히 보기</div>
+    </div>
+
+    <!-- LEC -->
+    <div class="pillar-card" id="card-lec" onclick="togglePillar('lec')" style="border-top:3px solid var(--green);">
+      <div class="pillar-header">
+        <div class="pillar-icon" style="background:rgba(52,211,153,0.15);color:var(--green);">L</div>
+        <div>
+          <div class="pillar-title" style="color:var(--green);">LEC</div>
+          <div style="font-size:0.72rem;color:var(--dim);">Logic Equivalence Checking</div>
+        </div>
+      </div>
+      <div class="pillar-question" style="border-left:3px solid var(--green);">
+        <strong style="color:var(--green);">"설계 A == 설계 B?"</strong><br>
+        <span style="color:var(--dim);font-size:0.82rem;">FF 구조 동일 전제</span>
+      </div>
+      <div class="pillar-summary">
+        <strong>입력:</strong> 설계 2개 (변환 전/후)<br>
+        <strong>찾는 것:</strong> 변환이 조합 로직을 바꿨는가<br>
+        <strong>비유:</strong> "번역본이 원본과 같은가?" (단어 대 단어 비교)
+      </div>
+      <div class="pillar-detail" id="detail-lec">
+        <div style="border-top:1px solid var(--border);margin-top:0.8rem;padding-top:0.8rem;font-size:0.82rem;color:var(--dim);line-height:1.7;">
+          LEC는 두 설계의 <strong style="color:var(--green);">FF를 1:1 매칭</strong>한 뒤, 각 FF 쌍 사이의 조합 로직이 동일한지 비교합니다.<br><br>
+          합성(Synthesis) 후 게이트 넷리스트가 원래 RTL과 같은 기능을 하는지 확인하는 데 주로 사용됩니다.<br><br>
+          <strong style="color:var(--fail);">한계:</strong> FF 구조가 바뀌면 매칭 자체가 실패합니다. Retiming이나 clock gating처럼 FF 위치가 바뀌는 변환에는 사용할 수 없습니다.
+        </div>
+      </div>
+      <div class="expand-hint">클릭하여 자세히 보기</div>
+    </div>
+
+    <!-- SEC -->
+    <div class="pillar-card" id="card-sec" onclick="togglePillar('sec')" style="border-top:3px solid var(--orange);">
+      <div class="pillar-header">
+        <div class="pillar-icon" style="background:rgba(245,158,11,0.15);color:var(--orange);">S</div>
+        <div>
+          <div class="pillar-title" style="color:var(--orange);">SEC</div>
+          <div style="font-size:0.72rem;color:var(--dim);">Sequential Equivalence Checking</div>
+        </div>
+      </div>
+      <div class="pillar-question" style="border-left:3px solid var(--orange);">
+        <strong style="color:var(--orange);">"설계 A == 설계 B?"</strong><br>
+        <span style="color:var(--dim);font-size:0.82rem;">FF 구조 달라도 OK</span>
+      </div>
+      <div class="pillar-summary">
+        <strong>입력:</strong> 설계 2개 (구조 변환 전/후)<br>
+        <strong>찾는 것:</strong> 구조 변환이 기능을 바꿨는가<br>
+        <strong>비유:</strong> "번역본이 원본과 같은가?" (의미 전체 비교, 문장 구조 달라도 OK)
+      </div>
+      <div class="pillar-detail" id="detail-sec">
+        <div style="border-top:1px solid var(--border);margin-top:0.8rem;padding-top:0.8rem;font-size:0.82rem;color:var(--dim);line-height:1.7;">
+          SEC는 FF 매칭 없이 <strong style="color:var(--orange);">입출력 동작(I/O behavior)</strong>만 비교합니다.<br><br>
+          동일한 입력 시퀀스를 주었을 때 동일한 출력 시퀀스가 나오면 <strong>Equivalent</strong>입니다.<br><br>
+          Retiming, clock gating, pipeline 추가, FSM re-encoding 등 FF 구조가 바뀌는 모든 변환에 사용할 수 있습니다.<br><br>
+          <strong style="color:var(--orange);">대신:</strong> LEC보다 훨씬 어렵고 느립니다. FF 구조가 보존되는 경우엔 LEC를 쓰는 것이 효율적입니다.
+        </div>
+      </div>
+      <div class="expand-hint">클릭하여 자세히 보기</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Section 2: When LEC fails ============ -->
+<div class="card">
+  <h2>언제 LEC가 안 되고 SEC가 필요한가?</h2>
+  <p style="color:var(--dim);margin-bottom:1rem;">Retiming 변환을 예시로 봅시다. FF 위치가 바뀌면 LEC는 매칭에 실패합니다.</p>
+
+  <div class="two-col">
+    <div>
+      <h3 style="color:var(--blue);margin-top:0;">Before: 원래 RTL</h3>
+      <div class="circuit-box" id="circuit-before">
+        <div class="circuit-row">
+          <span class="circuit-el circuit-ff">FF_A</span>
+          <span class="circuit-arrow">&rarr;</span>
+          <span class="circuit-el circuit-comb">comb logic</span>
+          <span class="circuit-arrow">&rarr;</span>
+          <span class="circuit-el circuit-ff">FF_B</span>
+        </div>
+        <div class="circuit-label">FF가 로직의 양쪽 끝에 위치</div>
+      </div>
+
+      <h3 style="color:var(--orange);margin-top:1rem;">After: Retiming 후</h3>
+      <div class="circuit-box" id="circuit-after">
+        <div class="circuit-row">
+          <span class="circuit-el circuit-comb">comb part1</span>
+          <span class="circuit-arrow">&rarr;</span>
+          <span class="circuit-el circuit-ff" style="border-color:var(--orange);color:var(--orange);">FF_A'</span>
+          <span class="circuit-arrow">&rarr;</span>
+          <span class="circuit-el circuit-comb">comb part2</span>
+          <span class="circuit-arrow">&rarr;</span>
+          <span class="circuit-el circuit-ff" style="border-color:var(--orange);color:var(--orange);">FF_B'</span>
+        </div>
+        <div class="circuit-label">FF가 조합 로직 사이로 이동</div>
+      </div>
+    </div>
+
+    <div>
+      <h3 style="margin-top:0;">검증 결과</h3>
+      <div class="sim-box" style="margin-top:0.5rem;">
+        <div style="margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+            <span class="tag tag-lec">LEC</span>
+            <span class="verdict verdict-fail">FAIL</span>
+          </div>
+          <div style="font-size:0.82rem;color:var(--dim);line-height:1.6;">
+            FF_A &harr; FF_A' 매칭 시도<br>
+            &rarr; 위치가 다름 &rarr; 조합 로직 경계 불일치<br>
+            &rarr; <strong style="color:var(--fail);">비교 불가능</strong>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+            <span class="tag tag-sec">SEC</span>
+            <span class="verdict verdict-pass">PASS</span>
+          </div>
+          <div style="font-size:0.82rem;color:var(--dim);line-height:1.6;">
+            FF 매칭 불필요<br>
+            &rarr; 같은 입력 &rarr; 같은 출력?<br>
+            &rarr; <strong style="color:var(--green);">I/O 동작 동일 확인</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-group" style="margin-top:1rem;">
+        <button class="btn" id="btn-animate" onclick="animateRetiming()">Retiming 애니메이션</button>
+        <button class="btn" onclick="resetRetiming()">리셋</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transformation table -->
+  <h3 style="margin-top:1.5rem;">변환 유형별 비교</h3>
+  <table>
+    <tr>
+      <th>변환</th>
+      <th>FF 구조</th>
+      <th style="color:var(--green);">LEC</th>
+      <th style="color:var(--orange);">SEC</th>
+    </tr>
+    <tr>
+      <td>합성 (기본)</td>
+      <td>동일</td>
+      <td><span class="verdict verdict-pass" style="font-size:0.75rem;">O</span></td>
+      <td><span class="verdict verdict-pass" style="font-size:0.75rem;">O</span></td>
+    </tr>
+    <tr>
+      <td>Retiming</td>
+      <td style="color:var(--orange);">변경</td>
+      <td><span class="verdict verdict-fail" style="font-size:0.75rem;">X</span></td>
+      <td><span class="verdict verdict-pass" style="font-size:0.75rem;">O</span></td>
+    </tr>
+    <tr>
+      <td>Clock gating</td>
+      <td style="color:var(--orange);">변경</td>
+      <td><span class="verdict verdict-fail" style="font-size:0.75rem;">X</span></td>
+      <td><span class="verdict verdict-pass" style="font-size:0.75rem;">O</span></td>
+    </tr>
+    <tr>
+      <td>Pipeline 추가</td>
+      <td style="color:var(--orange);">변경</td>
+      <td><span class="verdict verdict-fail" style="font-size:0.75rem;">X</span></td>
+      <td><span class="verdict verdict-pass" style="font-size:0.75rem;">O</span></td>
+    </tr>
+    <tr>
+      <td>FSM re-encoding</td>
+      <td style="color:var(--orange);">변경</td>
+      <td><span class="verdict verdict-fail" style="font-size:0.75rem;">X</span></td>
+      <td><span class="verdict verdict-pass" style="font-size:0.75rem;">O</span></td>
+    </tr>
+  </table>
+</div>
+
+<!-- ============ Section 3: SEC Limitations ============ -->
+<div class="card">
+  <h2>SEC의 한계</h2>
+
+  <div class="warning-box">
+    <div class="warning-title">&#9888; 핵심 주의</div>
+    <div style="font-size:1rem;font-weight:600;margin-bottom:0.8rem;">
+      SEC는 두 설계가 <span style="color:var(--fail);">같은지</span>만 봅니다.<br>
+      둘 다 틀려도 <span style="color:var(--fail);">Equivalent</span>입니다.
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:1rem;">
+    <div>
+      <h3 style="margin-top:0;">버그가 숨는 시나리오</h3>
+      <div class="sim-box" id="bug-scenario">
+        <div style="margin-bottom:0.8rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;">
+            <span style="font-weight:700;color:var(--blue);">설계 A</span>
+            <span style="font-size:0.75rem;color:var(--fail);">&#x2716; 버그 있음</span>
+          </div>
+          <div style="font-family:monospace;font-size:0.82rem;color:var(--dim);padding:0.4rem;background:rgba(0,0,0,0.3);border-radius:4px;">
+            sum = a + b; &nbsp;<span style="color:var(--fail);">// carry bit 누락!</span>
+          </div>
+        </div>
+        <div style="text-align:center;color:var(--dim);font-size:1.2rem;margin:0.3rem 0;">&darr; 구조 변환</div>
+        <div style="margin-bottom:0.8rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;">
+            <span style="font-weight:700;color:var(--orange);">설계 B</span>
+            <span style="font-size:0.75rem;color:var(--fail);">&#x2716; 같은 버그 유지</span>
+          </div>
+          <div style="font-family:monospace;font-size:0.82rem;color:var(--dim);padding:0.4rem;background:rgba(0,0,0,0.3);border-radius:4px;">
+            sum = a + b; &nbsp;<span style="color:var(--fail);">// carry bit 여전히 누락!</span>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:0.8rem;padding:0.6rem;background:rgba(245,158,11,0.1);border:1px solid var(--orange);border-radius:8px;">
+          <span style="font-weight:700;color:var(--orange);">SEC 결과: "Equivalent" &#10003;</span><br>
+          <span style="font-size:0.8rem;color:var(--fail);">&#8592; 버그를 못 잡음!</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-top:0;">왜 FPV가 먼저인가</h3>
+      <div class="sim-box">
+        <div style="font-size:0.88rem;line-height:1.8;color:var(--dim);">
+          <div style="margin-bottom:0.5rem;">
+            <span class="tag tag-fpv">FPV</span>
+            <span style="margin-left:0.3rem;">설계가 <strong style="color:var(--blue);">올바른지</strong> 확인</span>
+          </div>
+          <div style="padding-left:1rem;border-left:2px solid var(--blue);margin-bottom:1rem;">
+            "carry bit가 포함되어야 한다"라는 assertion을 검증<br>
+            &rarr; <span style="color:var(--fail);">FAIL</span> &rarr; 버그 발견!
+          </div>
+          <div style="margin-bottom:0.5rem;">
+            <span class="tag tag-sec">SEC</span>
+            <span style="margin-left:0.3rem;">변환이 <strong style="color:var(--orange);">정확한지</strong> 확인</span>
+          </div>
+          <div style="padding-left:1rem;border-left:2px solid var(--orange);">
+            FPV로 올바름을 확인한 뒤,<br>
+            변환이 그 올바름을 보존했는지 확인
+          </div>
+        </div>
+      </div>
+      <div class="formula" style="border-color:var(--fail);">
+        <span style="color:var(--fail);font-size:0.95rem;">SEC = "같은가?"</span><br>
+        <span style="color:var(--dim);font-size:0.85rem;">"맞는가?"는 FPV의 영역</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Section 4: Practical Flow ============ -->
+<div class="card">
+  <h2>실무 Flow</h2>
+  <p style="color:var(--dim);margin-bottom:1rem;">각 단계를 클릭하면 상세 설명이 나타납니다.</p>
+
+  <div class="flow-container" id="flow-container">
+    <div class="flow-step" data-step="0" onclick="selectFlowStep(0)" style="background:rgba(148,163,184,0.1);">
+      RTL 설계
+    </div>
+    <span class="flow-arrow">&rarr;</span>
+    <div class="flow-step" data-step="1" onclick="selectFlowStep(1)" style="background:rgba(56,189,248,0.1);border-color:var(--blue);">
+      <span class="tag tag-fpv" style="margin-bottom:0.3rem;">FPV</span><br>
+      설계 올바른가?
+    </div>
+    <span class="flow-arrow">&rarr;</span>
+    <div class="flow-step" data-step="2" onclick="selectFlowStep(2)" style="background:rgba(148,163,184,0.1);">
+      합성
+    </div>
+    <span class="flow-arrow">&rarr;</span>
+    <div class="flow-step" data-step="3" onclick="selectFlowStep(3)" style="background:rgba(52,211,153,0.1);border-color:var(--green);">
+      <span class="tag tag-lec" style="margin-bottom:0.3rem;">LEC</span><br>
+      합성 정확한가?
+    </div>
+    <span class="flow-arrow">&rarr;</span>
+    <div class="flow-step" data-step="4" onclick="selectFlowStep(4)" style="background:rgba(148,163,184,0.1);">
+      구조 변환
+    </div>
+    <span class="flow-arrow">&rarr;</span>
+    <div class="flow-step" data-step="5" onclick="selectFlowStep(5)" style="background:rgba(245,158,11,0.1);border-color:var(--orange);">
+      <span class="tag tag-sec" style="margin-bottom:0.3rem;">SEC</span><br>
+      변환 정확한가?
+    </div>
+    <span class="flow-arrow">&rarr;</span>
+    <div class="flow-step" data-step="6" onclick="selectFlowStep(6)" style="background:rgba(148,163,184,0.1);">
+      Silicon
+    </div>
+  </div>
+
+  <div class="flow-detail" id="flow-detail">
+    <div style="text-align:center;color:var(--dim);font-size:0.88rem;">위의 단계를 클릭하세요</div>
+  </div>
+
+  <!-- Key message -->
+  <div class="key-message">
+    <div class="key-item">
+      <div class="key-val" style="color:var(--blue);">FPV</div>
+      <div class="key-label">설계 정확성 (처음)</div>
+    </div>
+    <div class="key-item">
+      <div class="key-val" style="color:var(--green);">LEC</div>
+      <div class="key-label">합성 정확성 (중간)</div>
+    </div>
+    <div class="key-item">
+      <div class="key-val" style="color:var(--orange);">SEC</div>
+      <div class="key-label">변환 정확성 (마지막)</div>
+    </div>
+    <div class="key-item">
+      <div class="key-val" style="color:var(--text);">FPV + LEC + SEC</div>
+      <div class="key-label">완전한 검증</div>
+    </div>
+  </div>
+
+  <div class="formula">
+    <span style="color:var(--green);">세 가지 모두 있어야 완전한 검증</span><br>
+    <span style="color:var(--dim);font-size:0.85rem;">하나라도 빠지면 검증의 빈틈이 생깁니다</span>
+  </div>
+</div>
+
+<!-- ============ Section 5: Next Step ============ -->
+<div class="link-box">
+  <p style="font-size:1rem;color:var(--dim);line-height:1.6;">
+    SEC가 어떻게 동등성을 <strong style="color:var(--orange);">수학적으로 증명</strong>하는지<br>
+    <strong style="color:var(--blue);">Step 1: FSM 모델링</strong>부터 시작합니다
+  </p>
+  <a href="step1_fsm_modeling.html">Step 1: FSM 모델링 &rarr;</a>
+</div>
+
+<script>
+// ============ Pillar Card Toggle ============
+function togglePillar(id) {
+  const card = document.getElementById('card-' + id);
+  const wasExpanded = card.classList.contains('expanded');
+
+  // Close all
+  document.querySelectorAll('.pillar-card').forEach(c => c.classList.remove('expanded'));
+
+  // Toggle clicked
+  if (!wasExpanded) {
+    card.classList.add('expanded');
+  }
+}
+
+// ============ Retiming Animation ============
+let retimingAnimating = false;
+function animateRetiming() {
+  if (retimingAnimating) return;
+  retimingAnimating = true;
+  const btn = document.getElementById('btn-animate');
+  btn.style.opacity = '0.5';
+  btn.textContent = '애니메이션 중...';
+
+  const beforeBox = document.getElementById('circuit-before');
+  const afterBox = document.getElementById('circuit-after');
+
+  // Pulse before
+  beforeBox.style.borderColor = 'var(--blue)';
+  beforeBox.style.boxShadow = '0 0 12px rgba(56,189,248,0.3)';
+
+  setTimeout(() => {
+    beforeBox.style.borderColor = 'var(--border)';
+    beforeBox.style.boxShadow = 'none';
+
+    // Pulse after
+    afterBox.style.borderColor = 'var(--orange)';
+    afterBox.style.boxShadow = '0 0 12px rgba(245,158,11,0.3)';
+
+    setTimeout(() => {
+      afterBox.style.borderColor = 'var(--border)';
+      afterBox.style.boxShadow = 'none';
+
+      // Show verdict animation
+      const lec = document.querySelector('.verdict-fail');
+      const sec = document.querySelectorAll('.verdict-pass')[2]; // third pass is SEC in section2
+      if (lec) { lec.style.transform = 'scale(1.3)'; setTimeout(() => lec.style.transform = '', 400); }
+
+      retimingAnimating = false;
+      btn.style.opacity = '1';
+      btn.textContent = 'Retiming 애니메이션';
+    }, 800);
+  }, 800);
+}
+
+function resetRetiming() {
+  const beforeBox = document.getElementById('circuit-before');
+  const afterBox = document.getElementById('circuit-after');
+  beforeBox.style.borderColor = 'var(--border)';
+  beforeBox.style.boxShadow = 'none';
+  afterBox.style.borderColor = 'var(--border)';
+  afterBox.style.boxShadow = 'none';
+}
+
+// ============ Flow Diagram ============
+const flowDetails = [
+  {
+    title: 'RTL 설계',
+    color: 'var(--dim)',
+    desc: '엔지니어가 SystemVerilog/Verilog로 작성한 원본 설계입니다. 이것이 모든 검증의 기준점(golden reference)이 됩니다.'
+  },
+  {
+    title: 'FPV: 설계 올바른가?',
+    color: 'var(--blue)',
+    desc: 'SVA assertion으로 설계의 기능적 정확성을 검증합니다. 버그가 있다면 여기서 잡아야 합니다. SEC나 LEC는 버그를 찾지 못합니다.'
+  },
+  {
+    title: '합성 (Synthesis)',
+    color: 'var(--dim)',
+    desc: 'RTL을 게이트 레벨 넷리스트로 변환합니다. FF 구조는 보존되지만, 조합 로직이 게이트로 매핑됩니다.'
+  },
+  {
+    title: 'LEC: 합성 정확한가?',
+    color: 'var(--green)',
+    desc: 'RTL과 합성된 넷리스트의 FF를 1:1 매칭하고, 각 FF 쌍 사이의 조합 로직이 동일한지 확인합니다. FF 구조가 보존되었으므로 LEC로 충분합니다.'
+  },
+  {
+    title: '구조 변환 (Retiming, CG 등)',
+    color: 'var(--dim)',
+    desc: '성능/전력 최적화를 위해 FF 위치를 이동(retiming), clock gating 삽입, pipeline 추가 등을 수행합니다. FF 구조가 변경됩니다.'
+  },
+  {
+    title: 'SEC: 변환 정확한가?',
+    color: 'var(--orange)',
+    desc: 'FF 구조가 바뀌었으므로 LEC를 쓸 수 없습니다. SEC가 I/O 동작을 비교하여 변환이 기능을 보존했는지 증명합니다.'
+  },
+  {
+    title: 'Silicon',
+    color: 'var(--dim)',
+    desc: '모든 Formal Verification을 통과한 설계가 실리콘으로 제조됩니다. FPV + LEC + SEC를 모두 통과해야 신뢰할 수 있습니다.'
+  }
+];
+
+let activeFlowStep = -1;
+function selectFlowStep(idx) {
+  // Remove active from all
+  document.querySelectorAll('.flow-step').forEach(s => {
+    s.classList.remove('active');
+    s.style.boxShadow = '';
+  });
+
+  activeFlowStep = idx;
+  const step = document.querySelectorAll('.flow-step')[idx];
+  step.classList.add('active');
+  step.style.boxShadow = '0 0 16px rgba(255,255,255,0.15)';
+
+  const detail = flowDetails[idx];
+  document.getElementById('flow-detail').innerHTML =
+    '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">' +
+    '<span style="font-weight:700;color:' + detail.color + ';">' + detail.title + '</span></div>' +
+    '<div style="font-size:0.88rem;color:var(--dim);line-height:1.7;">' + detail.desc + '</div>';
+}
+
+// Add transition to circuit boxes
+document.querySelectorAll('.circuit-box').forEach(b => {
+  b.style.transition = 'border-color 0.4s, box-shadow 0.4s';
+});
+
+// Add transition to verdicts
+document.querySelectorAll('.verdict').forEach(v => {
+  v.style.transition = 'transform 0.3s';
+});
+</script>
+
+</body>
+</html>
