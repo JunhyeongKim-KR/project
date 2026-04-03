@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEC Reach: counter_eq</title>
+<style>
+  :root { --bg:#0f172a; --surface:#1e293b; --border:#475569; --text:#e2e8f0; --dim:#94a3b8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--text); padding:1.5rem; }
+  h1 { text-align:center; font-size:1.5rem; margin-bottom:0.2rem;
+    background:linear-gradient(135deg,#38bdf8,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .sub { text-align:center; color:var(--dim); margin-bottom:1rem; font-size:0.85rem; }
+
+  .verdict-banner {
+    text-align:center; padding:0.8rem 1.5rem; border-radius:12px; margin-bottom:1.5rem;
+    font-size:1.3rem; font-weight:700; letter-spacing:0.05em;
+  }
+  .verdict-eq { background:rgba(52,211,153,0.15); color:#34d399; border:2px solid #34d399; }
+  .verdict-neq { background:rgba(248,113,113,0.15); color:#f87171; border:2px solid #f87171; }
+
+  .controls {
+    display:flex; gap:0.5rem; justify-content:center; margin-bottom:1rem;
+  }
+  .controls button {
+    background:var(--surface); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:0.4rem 1rem; cursor:pointer; font-size:0.85rem;
+    transition: background 0.2s;
+  }
+  .controls button:hover { background:#334155; }
+  .controls button.active { background:#38bdf8; color:#0f172a; border-color:#38bdf8; }
+  .cycle-indicator {
+    text-align:center; color:var(--dim); font-size:0.8rem; margin-bottom:1rem;
+  }
+
+  .main-grid {
+    display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem;
+  }
+  @media (max-width:900px) { .main-grid { grid-template-columns:1fr; } }
+
+  .card {
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:1rem; overflow:auto;
+  }
+  .card h2 { font-size:1rem; margin-bottom:0.6rem; color:#38bdf8; }
+
+  .log-panel {
+    font-family:'JetBrains Mono','Fira Code',monospace; font-size:0.78rem;
+    line-height:1.6; white-space:pre-wrap; max-height:420px; overflow-y:auto;
+    background:#0d1117; border:1px solid var(--border); border-radius:8px; padding:0.8rem;
+  }
+
+  /* State grid */
+  .state-grid-container { text-align:center; }
+  .state-grid {
+    display:inline-grid; gap:3px; margin:0 auto;
+  }
+  .state-cell {
+    width:48px; height:48px; border-radius:6px; display:flex; align-items:center;
+    justify-content:center; font-size:0.7rem; font-family:monospace;
+    transition: all 0.3s ease; position:relative;
+  }
+  .cell-unreachable { background:#1e293b; color:#475569; border:1px solid #334155; }
+  .cell-reached { background:rgba(52,211,153,0.2); color:#34d399; border:1px solid #34d399; }
+  .cell-new { background:rgba(56,189,248,0.3); color:#38bdf8; border:2px solid #38bdf8;
+    animation: pulse 0.6s ease-in-out; }
+  .cell-bad { background:rgba(248,113,113,0.3); color:#f87171; border:2px solid #f87171;
+    animation: shake 0.5s ease-in-out; }
+
+  @keyframes pulse {
+    0% { transform:scale(1); } 50% { transform:scale(1.15); } 100% { transform:scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform:translateX(0); }
+    20% { transform:translateX(-3px); }
+    40% { transform:translateX(3px); }
+    60% { transform:translateX(-3px); }
+    80% { transform:translateX(3px); }
+  }
+
+  /* Product state table */
+  .product-section {
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:1rem; margin-bottom:1.5rem;
+  }
+  .product-section h2 { font-size:1rem; margin-bottom:0.8rem; color:#a78bfa; }
+  .product-table {
+    border-collapse:collapse; margin:0 auto; font-size:0.75rem; font-family:monospace;
+  }
+  .product-table th {
+    background:#0d1117; color:var(--dim); padding:6px 10px; border:1px solid var(--border);
+  }
+  .product-table td {
+    padding:6px 10px; border:1px solid var(--border); text-align:center;
+    transition: all 0.3s ease;
+  }
+  .td-unreachable { background:#1e293b; color:#475569; }
+  .td-ok { background:rgba(52,211,153,0.2); color:#34d399; }
+  .td-bad { background:rgba(248,113,113,0.3); color:#f87171; font-weight:bold; }
+  .td-new { background:rgba(56,189,248,0.25); color:#38bdf8; }
+
+  .legend {
+    display:flex; gap:1.5rem; justify-content:center; margin:0.8rem 0; font-size:0.78rem; color:var(--dim);
+  }
+  .legend span { display:flex; align-items:center; gap:0.3rem; }
+  .legend-box { width:14px; height:14px; border-radius:3px; }
+
+  /* Ref/Impl state diagram */
+  .diagram-row {
+    display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;
+  }
+  @media (max-width:900px) { .diagram-row { grid-template-columns:1fr; } }
+  .diagram-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1rem;
+  }
+  .diagram-card h2 { font-size:0.95rem; margin-bottom:0.5rem; }
+  .diagram-card h2.ref-title { color:#38bdf8; }
+  .diagram-card h2.impl-title { color:#a78bfa; }
+  .state-diagram { text-align:center; }
+  .state-node {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:52px; height:52px; border-radius:50%; margin:4px;
+    font-family:monospace; font-size:0.8rem; font-weight:600;
+    transition: all 0.3s ease;
+  }
+  .sn-inactive { background:#1e293b; color:#475569; border:2px solid #334155; }
+  .sn-reached { background:rgba(52,211,153,0.2); color:#34d399; border:2px solid #34d399; }
+  .sn-new { background:rgba(56,189,248,0.3); color:#38bdf8; border:2px solid #38bdf8; animation: pulse 0.6s ease-in-out; }
+  .sn-bad { background:rgba(248,113,113,0.3); color:#f87171; border:2px solid #f87171; animation: shake 0.5s ease-in-out; }
+
+  .info-bar {
+    display:flex; gap:1.5rem; justify-content:center; flex-wrap:wrap;
+    font-size:0.8rem; color:var(--dim); margin-bottom:1.2rem;
+  }
+  .info-bar span { background:var(--surface); padding:0.3rem 0.8rem; border-radius:6px; border:1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<h1>Sequential Reachability Analysis</h1>
+<p class="sub">counter_eq: ref_counter vs impl_counter &mdash; 2-bit counter: out=(cnt==3) vs out=cnt[1]&cnt[0]</p>
+
+<div class="verdict-banner verdict-eq">
+  EQUIVALENT (4 cycles, 4 states reached)
+</div>
+
+<div class="info-bar">
+  <span>Ref state bits: 2</span>
+  <span>Impl state bits: 2</span>
+  <span>Input bits: 0</span>
+  <span>Total cycles: 4</span>
+</div>
+
+<div class="controls">
+  <button id="btn-reset" onclick="resetAnim()">Reset</button>
+  <button id="btn-step" onclick="stepAnim()">Step</button>
+  <button id="btn-play" onclick="playAnim()">Play</button>
+</div>
+<div class="cycle-indicator" id="cycle-ind">Cycle: 0 / 3</div>
+
+<div class="diagram-row">
+  <div class="diagram-card">
+    <h2 class="ref-title">Reference: ref_counter</h2>
+    <div class="state-diagram" id="ref-diagram"></div>
+  </div>
+  <div class="diagram-card">
+    <h2 class="impl-title">Implementation: impl_counter</h2>
+    <div class="state-diagram" id="impl-diagram"></div>
+  </div>
+</div>
+
+<div class="diagram-row"><div class="diagram-card"><h2 class="ref-title">Reference SystemVerilog</h2><pre style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:0.8rem;font-size:0.78rem;line-height:1.5;overflow-x:auto;font-family:monospace;color:#e2e8f0;">module ref_counter (
+  input  logic clk, rst_n,
+  output logic out
+);
+  logic [1:0] cnt;
+  always_ff @(posedge clk or negedge rst_n)
+    if (!rst_n) cnt &lt;= 2'b00;
+    else        cnt &lt;= cnt + 1;
+
+  assign out = (cnt == 2'b11);
+endmodule</pre></div><div class="diagram-card"><h2 class="impl-title">Implementation SystemVerilog</h2><pre style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:0.8rem;font-size:0.78rem;line-height:1.5;overflow-x:auto;font-family:monospace;color:#e2e8f0;">module impl_counter (
+  input  logic clk, rst_n,
+  output logic out
+);
+  logic [1:0] cnt;
+  always_ff @(posedge clk or negedge rst_n)
+    if (!rst_n) cnt &lt;= 2'b00;
+    else        cnt &lt;= cnt + 1;
+
+  assign out = cnt[1] & cnt[0];
+endmodule</pre></div></div>
+
+<div class="main-grid">
+  <div class="card">
+    <h2>Cycle-by-Cycle Trace</h2>
+    <div class="log-panel" id="log-panel"></div>
+  </div>
+  <div class="card">
+    <h2>Product State Grid (ref x impl)</h2>
+    <div class="state-grid-container" id="grid-container"></div>
+    <div class="legend">
+      <span><span class="legend-box" style="background:#1e293b;border:1px solid #334155;"></span> Unreachable</span>
+      <span><span class="legend-box" style="background:rgba(52,211,153,0.3);border:1px solid #34d399;"></span> Reached (ok)</span>
+      <span><span class="legend-box" style="background:rgba(56,189,248,0.3);border:1px solid #38bdf8;"></span> New this cycle</span>
+      <span><span class="legend-box" style="background:rgba(248,113,113,0.3);border:1px solid #f87171;"></span> Miter=1 (bad)</span>
+    </div>
+  </div>
+</div>
+
+<div class="product-section">
+  <h2>Product State Table</h2>
+  <div style="overflow-x:auto;" id="product-table-container"></div>
+</div>
+
+<script>
+const CYCLE_LOGS = ["<b>Cycle 0 (reset):</b><br>  Reach = {00}<br>    state=00: ref=0, impl=0, miter=0 <span style='color:#34d399'>\u2713</span><br>  New: {01}<br>  Reach = {00, 01}", "<b>Cycle 1:</b><br>  Reach = {00, 01}<br>    state=01 <span style='color:#38bdf8'>(new)</span>: ref=0, impl=0, miter=0 <span style='color:#34d399'>\u2713</span><br>  New: {10}<br>  Reach = {00, 01, 10}", "<b>Cycle 2:</b><br>  Reach = {00, 01, 10}<br>    state=10 <span style='color:#38bdf8'>(new)</span>: ref=0, impl=0, miter=0 <span style='color:#34d399'>\u2713</span><br>  New: {11}<br>  Reach = {00, 01, 10, 11}", "<b>Cycle 3:</b><br>  Reach = {00, 01, 10, 11}<br>    state=11 <span style='color:#38bdf8'>(new)</span>: ref=1, impl=1, miter=0 <span style='color:#34d399'>\u2713</span><br>  New: {} (all in Reach)<br>  Reach = {00, 01, 10, 11} <span style='color:#facc15'>\u2190 FIXED POINT</span>"];
+const GRID_DATA = [{"rs": 0, "is_": 0, "status": "ok"}, {"rs": 0, "is_": 1, "status": "unreachable"}, {"rs": 0, "is_": 2, "status": "unreachable"}, {"rs": 0, "is_": 3, "status": "unreachable"}, {"rs": 1, "is_": 0, "status": "unreachable"}, {"rs": 1, "is_": 1, "status": "ok"}, {"rs": 1, "is_": 2, "status": "unreachable"}, {"rs": 1, "is_": 3, "status": "unreachable"}, {"rs": 2, "is_": 0, "status": "unreachable"}, {"rs": 2, "is_": 1, "status": "unreachable"}, {"rs": 2, "is_": 2, "status": "ok"}, {"rs": 2, "is_": 3, "status": "unreachable"}, {"rs": 3, "is_": 0, "status": "unreachable"}, {"rs": 3, "is_": 1, "status": "unreachable"}, {"rs": 3, "is_": 2, "status": "unreachable"}, {"rs": 3, "is_": 3, "status": "ok"}];
+const CYCLE_REACH = [{"reached": [[1, 1], [0, 0]], "new": [[0, 0]], "cex": []}, {"reached": [[0, 0], [2, 2], [1, 1]], "new": [[2, 2]], "cex": []}, {"reached": [[0, 0], [1, 1], [3, 3], [2, 2]], "new": [[3, 3]], "cex": []}, {"reached": [[0, 0], [1, 1], [3, 3], [2, 2]], "new": [], "cex": []}];
+const N_REF = 4;
+const N_IMPL = 4;
+const REF_BITS = 2;
+const IMPL_BITS = 2;
+const TOTAL_CYCLES = 4;
+const IS_EQUIVALENT = true;
+
+let currentCycle = -1;
+let playInterval = null;
+
+function fmtBin(val, bits) {
+  return val.toString(2).padStart(bits, '0');
+}
+
+// Build ref/impl state diagrams
+function buildDiagrams() {
+  const refDiv = document.getElementById('ref-diagram');
+  const implDiv = document.getElementById('impl-diagram');
+  for (let i = 0; i < N_REF; i++) {
+    const node = document.createElement('span');
+    node.className = 'state-node sn-inactive';
+    node.id = 'ref-sn-' + i;
+    node.textContent = fmtBin(i, REF_BITS);
+    refDiv.appendChild(node);
+  }
+  for (let i = 0; i < N_IMPL; i++) {
+    const node = document.createElement('span');
+    node.className = 'state-node sn-inactive';
+    node.id = 'impl-sn-' + i;
+    node.textContent = fmtBin(i, IMPL_BITS);
+    implDiv.appendChild(node);
+  }
+}
+
+// Build product state grid
+function buildGrid() {
+  const container = document.getElementById('grid-container');
+  // Header row showing impl states
+  let html = '<div class="state-grid" style="grid-template-columns: 48px ' + 'repeat(' + N_IMPL + ', 48px)">';
+  // Corner cell
+  html += '<div class="state-cell" style="background:transparent;border:none;font-size:0.65rem;color:var(--dim);">R\\I</div>';
+  for (let j = 0; j < N_IMPL; j++) {
+    html += '<div class="state-cell" style="background:transparent;border:none;color:var(--dim);font-size:0.7rem;">' + fmtBin(j, IMPL_BITS) + '</div>';
+  }
+  for (let i = 0; i < N_REF; i++) {
+    html += '<div class="state-cell" style="background:transparent;border:none;color:var(--dim);font-size:0.7rem;">' + fmtBin(i, REF_BITS) + '</div>';
+    for (let j = 0; j < N_IMPL; j++) {
+      html += '<div class="state-cell cell-unreachable" id="grid-' + i + '-' + j + '">' + fmtBin(i, REF_BITS) + ',' + fmtBin(j, IMPL_BITS) + '</div>';
+    }
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// Build product table
+function buildProductTable() {
+  const container = document.getElementById('product-table-container');
+  let html = '<table class="product-table"><thead><tr><th>ref \\ impl</th>';
+  for (let j = 0; j < N_IMPL; j++) {
+    html += '<th>' + fmtBin(j, IMPL_BITS) + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+  for (let i = 0; i < N_REF; i++) {
+    html += '<tr><th>' + fmtBin(i, REF_BITS) + '</th>';
+    for (let j = 0; j < N_IMPL; j++) {
+      html += '<td class="td-unreachable" id="ptd-' + i + '-' + j + '">-</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function updateView(cycle) {
+  if (cycle < 0 || cycle >= TOTAL_CYCLES) return;
+  currentCycle = cycle;
+  document.getElementById('cycle-ind').textContent = 'Cycle: ' + cycle + ' / ' + (TOTAL_CYCLES - 1);
+
+  // Update log panel
+  const logPanel = document.getElementById('log-panel');
+  let logHtml = '';
+  for (let c = 0; c <= cycle; c++) {
+    logHtml += CYCLE_LOGS[c] + '<br><br>';
+  }
+  logPanel.innerHTML = logHtml;
+  logPanel.scrollTop = logPanel.scrollHeight;
+
+  // Gather cumulative reached and new states
+  const reachedSet = new Set();
+  const newSet = new Set();
+  const cexSet = new Set();
+
+  const data = CYCLE_REACH[cycle];
+  data.reached.forEach(s => reachedSet.add(s[0] + ',' + s[1]));
+  data['new'].forEach(s => newSet.add(s[0] + ',' + s[1]));
+  data.cex.forEach(s => cexSet.add(s[0] + ',' + s[1]));
+
+  // Track which ref/impl states are reached or new
+  const refReached = new Set();
+  const refNew = new Set();
+  const refBad = new Set();
+  const implReached = new Set();
+  const implNew = new Set();
+  const implBad = new Set();
+
+  // Update grid and product table
+  for (let i = 0; i < N_REF; i++) {
+    for (let j = 0; j < N_IMPL; j++) {
+      const key = i + ',' + j;
+      const gridCell = document.getElementById('grid-' + i + '-' + j);
+      const tableCell = document.getElementById('ptd-' + i + '-' + j);
+      if (cexSet.has(key)) {
+        gridCell.className = 'state-cell cell-bad';
+        tableCell.className = 'td-bad';
+        tableCell.textContent = 'X';
+        refBad.add(i); implBad.add(j);
+      } else if (newSet.has(key)) {
+        gridCell.className = 'state-cell cell-new';
+        tableCell.className = 'td-new';
+        tableCell.textContent = 'new';
+        refNew.add(i); implNew.add(j);
+      } else if (reachedSet.has(key)) {
+        gridCell.className = 'state-cell cell-reached';
+        tableCell.className = 'td-ok';
+        tableCell.textContent = '✓';
+        refReached.add(i); implReached.add(j);
+      } else {
+        gridCell.className = 'state-cell cell-unreachable';
+        tableCell.className = 'td-unreachable';
+        tableCell.textContent = '-';
+      }
+    }
+  }
+
+  // Update ref/impl state diagrams
+  for (let i = 0; i < N_REF; i++) {
+    const node = document.getElementById('ref-sn-' + i);
+    if (refBad.has(i)) node.className = 'state-node sn-bad';
+    else if (refNew.has(i)) node.className = 'state-node sn-new';
+    else if (refReached.has(i)) node.className = 'state-node sn-reached';
+    else node.className = 'state-node sn-inactive';
+  }
+  for (let i = 0; i < N_IMPL; i++) {
+    const node = document.getElementById('impl-sn-' + i);
+    if (implBad.has(i)) node.className = 'state-node sn-bad';
+    else if (implNew.has(i)) node.className = 'state-node sn-new';
+    else if (implReached.has(i)) node.className = 'state-node sn-reached';
+    else node.className = 'state-node sn-inactive';
+  }
+}
+
+function resetAnim() {
+  stopPlay();
+  currentCycle = -1;
+  // Reset all cells
+  for (let i = 0; i < N_REF; i++) {
+    for (let j = 0; j < N_IMPL; j++) {
+      const gridCell = document.getElementById('grid-' + i + '-' + j);
+      const tableCell = document.getElementById('ptd-' + i + '-' + j);
+      gridCell.className = 'state-cell cell-unreachable';
+      tableCell.className = 'td-unreachable';
+      tableCell.textContent = '-';
+    }
+    document.getElementById('ref-sn-' + i).className = 'state-node sn-inactive';
+  }
+  for (let j = 0; j < N_IMPL; j++) {
+    document.getElementById('impl-sn-' + j).className = 'state-node sn-inactive';
+  }
+  document.getElementById('log-panel').innerHTML = '<span style="color:var(--dim)">Press Step or Play to begin...</span>';
+  document.getElementById('cycle-ind').textContent = 'Cycle: - / ' + (TOTAL_CYCLES - 1);
+}
+
+function stepAnim() {
+  stopPlay();
+  const next = currentCycle + 1;
+  if (next < TOTAL_CYCLES) {
+    updateView(next);
+  }
+}
+
+function stopPlay() {
+  if (playInterval) {
+    clearInterval(playInterval);
+    playInterval = null;
+    document.getElementById('btn-play').textContent = 'Play';
+    document.getElementById('btn-play').classList.remove('active');
+  }
+}
+
+function playAnim() {
+  if (playInterval) {
+    stopPlay();
+    return;
+  }
+  document.getElementById('btn-play').textContent = 'Pause';
+  document.getElementById('btn-play').classList.add('active');
+  playInterval = setInterval(() => {
+    const next = currentCycle + 1;
+    if (next < TOTAL_CYCLES) {
+      updateView(next);
+    } else {
+      stopPlay();
+    }
+  }, 1200);
+}
+
+// Initialize
+buildDiagrams();
+buildGrid();
+buildProductTable();
+// Show first cycle immediately
+updateView(0);
+</script>
+
+</body>
+</html>
