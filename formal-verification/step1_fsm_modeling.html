@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Step 1: FSM 모델링 - Moore vs Mealy</title>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface2: #334155; --border: #475569;
+    --text: #e2e8f0; --dim: #94a3b8;
+    --moore: #38bdf8; --mealy: #f59e0b; --accent: #34d399; --fail: #f87171;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; padding:2rem; }
+
+  h1 { text-align:center; font-size:1.8rem; margin-bottom:0.3rem;
+    background:linear-gradient(135deg,var(--moore),var(--mealy));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .sub { text-align:center; color:var(--dim); margin-bottom:2rem; }
+
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:1.5rem; margin-bottom:1.5rem; }
+  .card h2 { font-size:1.2rem; margin-bottom:1rem; }
+  .card h3 { font-size:1rem; margin:1rem 0 0.5rem; }
+
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+  @media (max-width:700px) { .two-col { grid-template-columns:1fr; } }
+
+  .box { background:#0d1117; border-radius:8px; padding:1.2rem; border:1px solid var(--border); }
+  .box h3 { margin-top:0; }
+
+  .formula { background:#0d1117; border:1px solid var(--border); border-radius:8px;
+    padding:1rem; text-align:center; font-size:1.1rem; margin:0.8rem 0; font-family:monospace; }
+
+  /* Traffic light */
+  .traffic { display:flex; flex-direction:column; align-items:center; gap:0.5rem; margin:1rem 0; }
+  .light-row { display:flex; align-items:center; gap:1rem; }
+  .light { width:40px; height:40px; border-radius:50%; border:2px solid var(--border); transition:all 0.5s; }
+  .light.red-on { background:#f87171; box-shadow:0 0 20px #f87171; border-color:#f87171; }
+  .light.red-off { background:#3f1515; }
+  .light.green-on { background:#34d399; box-shadow:0 0 20px #34d399; border-color:#34d399; }
+  .light.green-off { background:#0f2922; }
+  .light-label { font-size:0.85rem; min-width:80px; }
+  .light-output { font-size:0.9rem; font-weight:600; min-width:100px; text-align:right; }
+
+  /* Vending machine */
+  .vend-display { background:#0d1117; border:1px solid var(--border); border-radius:8px;
+    padding:1rem; text-align:center; font-size:1.1rem; margin:0.8rem 0; min-height:60px;
+    display:flex; align-items:center; justify-content:center; transition:all 0.3s; }
+
+  .btn-group { display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap; margin:0.8rem 0; }
+  .btn { padding:0.5rem 1.2rem; border-radius:8px; cursor:pointer; font-size:0.85rem;
+    border:1px solid var(--border); background:var(--surface2); color:var(--text); transition:all 0.2s; }
+  .btn:hover { border-color:var(--mealy); transform:translateY(-1px); }
+  .btn:active { transform:translateY(1px); }
+  .btn.active { background:var(--mealy); color:#0f172a; border-color:var(--mealy); }
+
+  /* FSM diagram */
+  canvas { display:block; margin:0 auto; }
+
+  /* Comparison table */
+  table { width:100%; border-collapse:collapse; font-size:0.88rem; margin:1rem 0; }
+  th { background:var(--surface2); padding:0.6rem; text-align:left; border-bottom:2px solid var(--border); }
+  td { padding:0.5rem 0.6rem; border-bottom:1px solid var(--border); }
+
+  /* Interactive section */
+  .sim-box { background:#0d1117; border:1px solid var(--border); border-radius:8px; padding:1rem; margin:0.8rem 0; }
+  .sim-row { display:flex; align-items:center; gap:0.5rem; margin:0.3rem 0; font-size:0.85rem; }
+  .sim-label { min-width:60px; color:var(--dim); }
+  .sim-val { font-weight:600; font-family:monospace; }
+
+  .tag { display:inline-block; padding:0.15rem 0.5rem; border-radius:4px; font-size:0.75rem; font-weight:600; }
+  .tag-moore { background:rgba(56,189,248,0.2); color:var(--moore); border:1px solid var(--moore); }
+  .tag-mealy { background:rgba(245,158,11,0.2); color:var(--mealy); border:1px solid var(--mealy); }
+</style>
+</head>
+<body>
+
+<p style="margin-bottom:0.5rem;">
+  <a href="index.html" style="color:var(--dim);text-decoration:none;font-size:0.85rem;">&larr; Formal Verification Home</a>
+  <span style="color:var(--dim);font-size:0.85rem;"> &nbsp;|&nbsp; </span>
+  <a href="vcformal_seq_math.html" style="color:var(--dim);text-decoration:none;font-size:0.85rem;">SEC 수학적 기초 &rarr;</a>
+</p>
+<h1>Step 1: FSM 모델링</h1>
+<p class="sub">디지털 회로를 수학적 객체로 변환 &mdash; SEC의 출발점</p>
+
+<!-- ============ FSM Definition ============ -->
+<div class="card">
+  <h2>FSM이란?</h2>
+  <p style="color:var(--dim);margin-bottom:1rem;">디지털 회로는 <strong>클럭마다 상태가 바뀌는 기계</strong>입니다. 이걸 수학으로 표현한 것이 FSM(Finite State Machine)입니다.</p>
+
+  <div class="formula" style="font-size:1.2rem;">
+    M = ( S, s₀, I, O, <span style="color:var(--accent);">δ</span>, <span style="color:var(--mealy);">λ</span> )
+  </div>
+
+  <table>
+    <tr><th>기호</th><th>의미</th><th>회로에서의 대응</th></tr>
+    <tr><td><strong>S</strong></td><td>상태 집합</td><td>모든 FF 값의 가능한 조합</td></tr>
+    <tr><td><strong>s₀</strong></td><td>초기 상태</td><td>리셋 후 FF 값</td></tr>
+    <tr><td><strong>I</strong></td><td>입력 집합</td><td>primary input 포트들</td></tr>
+    <tr><td><strong>O</strong></td><td>출력 집합</td><td>primary output 포트들</td></tr>
+    <tr><td style="color:var(--accent);"><strong>δ: S &times; I → S</strong></td><td>상태 전이 함수</td><td>조합 로직 + FF의 D 입력</td></tr>
+    <tr><td style="color:var(--mealy);"><strong>λ: S &times; I → O</strong></td><td>출력 함수</td><td>조합 로직 → output 포트</td></tr>
+  </table>
+</div>
+
+<!-- ============ Concrete Example ============ -->
+<div class="card">
+  <h2>예시: 2-bit Counter</h2>
+  <div class="two-col">
+    <div>
+      <h3 style="color:var(--moore);margin-top:0;">SystemVerilog</h3>
+      <div class="box" style="font-family:monospace;font-size:0.82rem;line-height:1.6;">
+        <span style="color:#ff7b72;">always_ff</span> @(<span style="color:#ff7b72;">posedge</span> clk)<br>
+        &nbsp;&nbsp;<span style="color:#ff7b72;">if</span> (!rst_n) cnt &lt;= 2'b00;<br>
+        &nbsp;&nbsp;<span style="color:#ff7b72;">else</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cnt &lt;= cnt + 1;<br><br>
+        <span style="color:#ff7b72;">assign</span> out = (cnt == 2'b11);
+      </div>
+      <h3>FSM 표현</h3>
+      <div class="sim-box">
+        <div class="sim-row"><span class="sim-label" style="min-width:30px;">S</span><span class="sim-val">= {00, 01, 10, 11}</span></div>
+        <div class="sim-row"><span class="sim-label" style="min-width:30px;">s₀</span><span class="sim-val">= 00 (리셋)</span></div>
+        <div class="sim-row"><span class="sim-label" style="min-width:30px;">δ</span><span class="sim-val">: 00→01→10→11→00</span></div>
+        <div class="sim-row"><span class="sim-label" style="min-width:30px;">λ</span><span class="sim-val">: 11→1, 나머지→0</span></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-top:0;">상태 전이도</h3>
+      <canvas id="canvas-counter" width="280" height="240"></canvas>
+      <div class="btn-group">
+        <button class="btn" onclick="counterStep()">클럭 (다음 상태)</button>
+        <button class="btn" onclick="counterReset()">리셋</button>
+      </div>
+      <div class="sim-box" style="margin-top:0.5rem;">
+        <div class="sim-row"><span class="sim-label">cnt:</span><span class="sim-val" id="cnt-val" style="color:var(--moore);">00</span></div>
+        <div class="sim-row"><span class="sim-label">out:</span><span class="sim-val" id="cnt-out">0</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ State Space Explosion ============ -->
+<div class="card">
+  <h2>상태 폭발 (State Space Explosion)</h2>
+  <p style="color:var(--dim);margin-bottom:1rem;">FF 수가 늘어나면 상태 공간이 <strong>지수적</strong>으로 커집니다. 이것이 SEC를 어렵게 만드는 근본 원인입니다.</p>
+
+  <div class="two-col">
+    <div>
+      <table>
+        <tr><th>FF 개수</th><th>상태 수</th><th>전수조사 가능?</th></tr>
+        <tr><td>2개</td><td>4</td><td style="color:var(--accent);">가능</td></tr>
+        <tr><td>8개</td><td>256</td><td style="color:var(--accent);">가능</td></tr>
+        <tr><td>16개</td><td>65,536</td><td style="color:var(--mealy);">힘듦</td></tr>
+        <tr><td>32개</td><td>~4.3 &times; 10&#8313;</td><td style="color:var(--fail);">불가능</td></tr>
+        <tr><td>320개</td><td>~2 &times; 10&#8313;&#8310;</td><td style="color:var(--fail);">절대 불가능</td></tr>
+      </table>
+    </div>
+    <div>
+      <div id="explosion-viz" style="display:flex;align-items:flex-end;gap:4px;height:180px;padding:0.5rem;">
+      </div>
+      <p style="color:var(--dim);font-size:0.8rem;text-align:center;margin-top:0.3rem;">FF 수에 따른 상태 공간 (로그 스케일)</p>
+    </div>
+  </div>
+
+  <div class="formula" style="margin-top:1rem;border-color:var(--fail);">
+    <span style="color:var(--fail);">실제 회로: FF 수천~수만 개</span><br>
+    <span style="color:var(--dim);font-size:0.9rem;">→ 모든 상태를 직접 나열하는 것은 불가능 → BDD, SAT가 필요한 이유 (4~5단계)</span>
+  </div>
+</div>
+
+<!-- ============ Moore vs Mealy Section ============ -->
+<div class="card" style="background:linear-gradient(135deg, rgba(56,189,248,0.05), rgba(245,158,11,0.05));border-color:var(--border);">
+  <h2>λ 함수의 두 가지 형태: Moore vs Mealy</h2>
+  <p style="color:var(--dim);margin-bottom:0.5rem;">FSM 6-tuple 중 출력 함수 <strong>λ</strong>를 어떻게 정의하느냐에 따라 두 모델로 나뉩니다.</p>
+</div>
+
+<!-- ============ Core Difference ============ -->
+<div class="card">
+  <h2>핵심 차이: 출력이 뭘 보는가?</h2>
+  <div class="two-col">
+    <div class="formula" style="border-color:var(--moore);">
+      <span class="tag tag-moore">Moore</span><br><br>
+      <span style="color:var(--moore);font-size:1.3rem;">출력 = f( <strong>상태</strong> )</span><br>
+      <span style="color:var(--dim);font-size:0.85rem;">λ: S → O</span>
+    </div>
+    <div class="formula" style="border-color:var(--mealy);">
+      <span class="tag tag-mealy">Mealy</span><br><br>
+      <span style="color:var(--mealy);font-size:1.3rem;">출력 = f( <strong>상태</strong>, <strong>입력</strong> )</span><br>
+      <span style="color:var(--dim);font-size:0.85rem;">λ: S &times; I → O</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Traffic Light (Moore) ============ -->
+<div class="card">
+  <h2><span class="tag tag-moore">Moore</span> &nbsp;신호등 — 상태가 출력을 결정</h2>
+  <p style="color:var(--dim);margin-bottom:1rem;">버튼을 눌러도 <strong>상태가 바뀌기 전까지</strong> 출력은 고정됩니다.</p>
+
+  <div class="two-col">
+    <div>
+      <div class="traffic">
+        <div class="light-row">
+          <div class="light red-on" id="tl-red"></div>
+          <span class="light-label">빨간불</span>
+          <span class="light-output" id="tl-output" style="color:#f87171;">출력: 정지</span>
+        </div>
+        <div class="light-row">
+          <div class="light green-off" id="tl-green"></div>
+          <span class="light-label">초록불</span>
+          <span class="light-output"></span>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn" onclick="toggleTraffic()">상태 전환 (클럭)</button>
+      </div>
+      <div class="sim-box">
+        <div class="sim-row"><span class="sim-label">현재 상태:</span><span class="sim-val" id="tl-state">빨간불</span></div>
+        <div class="sim-row"><span class="sim-label">출력:</span><span class="sim-val" id="tl-out-text">정지</span></div>
+        <div class="sim-row" style="color:var(--dim);font-size:0.8rem;margin-top:0.5rem;">
+          입력과 무관 — 상태만 보고 출력 결정
+        </div>
+      </div>
+    </div>
+    <div>
+      <canvas id="canvas-moore" width="300" height="200"></canvas>
+      <p style="color:var(--dim);font-size:0.82rem;text-align:center;margin-top:0.5rem;">출력이 <strong>상태 안에</strong> 적혀있음 (원 안)</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Vending Machine (Mealy) ============ -->
+<div class="card">
+  <h2><span class="tag tag-mealy">Mealy</span> &nbsp;자판기 — 상태 + 입력이 출력을 결정</h2>
+  <p style="color:var(--dim);margin-bottom:1rem;"><strong>같은 대기 상태</strong>에서 넣는 금액에 따라 출력이 달라집니다.</p>
+
+  <div class="two-col">
+    <div>
+      <div class="vend-display" id="vend-display">동전을 넣어주세요</div>
+      <div class="btn-group">
+        <button class="btn" onclick="vendInsert(100)">100원</button>
+        <button class="btn" onclick="vendInsert(500)">500원</button>
+        <button class="btn" onclick="vendReset()">리셋</button>
+      </div>
+      <div class="sim-box">
+        <div class="sim-row"><span class="sim-label">상태:</span><span class="sim-val" id="vend-state">대기</span></div>
+        <div class="sim-row"><span class="sim-label">잔액:</span><span class="sim-val" id="vend-balance">0원</span></div>
+        <div class="sim-row"><span class="sim-label">입력:</span><span class="sim-val" id="vend-input">-</span></div>
+        <div class="sim-row"><span class="sim-label">출력:</span><span class="sim-val" id="vend-output">-</span></div>
+        <div class="sim-row" style="color:var(--dim);font-size:0.8rem;margin-top:0.5rem;">
+          같은 "대기" 상태 — 입력에 따라 출력이 즉시 달라짐
+        </div>
+      </div>
+    </div>
+    <div>
+      <canvas id="canvas-mealy" width="300" height="220"></canvas>
+      <p style="color:var(--dim);font-size:0.82rem;text-align:center;margin-top:0.5rem;">출력이 <strong>화살표 위에</strong> 적혀있음 (전이에 의존)</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Why Mealy has fewer states ============ -->
+<div class="card">
+  <h2>왜 Mealy가 상태 수가 더 적은가?</h2>
+  <p style="color:var(--dim);margin-bottom:1rem;">같은 동작 <strong>"req 오면 gnt 내보내기"</strong>를 두 방식으로 구현해봅시다. 클릭해서 비교하세요.</p>
+
+  <div class="two-col">
+    <!-- Moore side -->
+    <div class="box">
+      <h3 style="color:var(--moore);margin-top:0;"><span class="tag tag-moore">Moore</span> &nbsp;상태 2개 필요</h3>
+      <canvas id="canvas-why-moore" width="280" height="220"></canvas>
+      <div class="sim-box" style="margin-top:0.5rem;">
+        <div class="sim-row"><span class="sim-label">상태:</span><span class="sim-val" id="why-moore-state" style="color:var(--moore);">IDLE</span></div>
+        <div class="sim-row"><span class="sim-label">gnt:</span><span class="sim-val" id="why-moore-gnt">0</span></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn" onclick="whyMooreClick()" id="why-moore-btn">req=1 (클럭)</button>
+      </div>
+      <p style="color:var(--dim);font-size:0.8rem;margin-top:0.5rem;">
+        gnt=1을 내보내려면 <strong>GRANT 상태로 이동</strong>해야 함<br>
+        → 출력이 다르면 상태도 달라야 한다
+      </p>
+    </div>
+
+    <!-- Mealy side -->
+    <div class="box">
+      <h3 style="color:var(--mealy);margin-top:0;"><span class="tag tag-mealy">Mealy</span> &nbsp;상태 1개로 충분</h3>
+      <canvas id="canvas-why-mealy" width="280" height="220"></canvas>
+      <div class="sim-box" style="margin-top:0.5rem;">
+        <div class="sim-row"><span class="sim-label">상태:</span><span class="sim-val" id="why-mealy-state" style="color:var(--mealy);">IDLE</span></div>
+        <div class="sim-row"><span class="sim-label">gnt:</span><span class="sim-val" id="why-mealy-gnt">0</span></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn" onclick="whyMealyClick(1)">req=1</button>
+        <button class="btn" onclick="whyMealyClick(0)">req=0</button>
+      </div>
+      <p style="color:var(--dim);font-size:0.8rem;margin-top:0.5rem;">
+        상태 이동 없이 입력만 보고 <strong>즉시 출력 결정</strong><br>
+        → GRANT 상태가 필요 없다
+      </p>
+    </div>
+  </div>
+
+  <!-- Extreme example -->
+  <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-top:1rem;">
+    <h3 style="color:var(--accent);margin:0 0 0.8rem;">극단적 예시: 출력 4가지인 시스템</h3>
+    <div class="two-col" style="gap:1rem;">
+      <div style="text-align:center;">
+        <div style="display:flex;gap:0.4rem;justify-content:center;flex-wrap:wrap;">
+          <div style="width:60px;height:60px;border-radius:50%;border:2px solid var(--moore);background:rgba(56,189,248,0.1);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--moore);">S0<br>out=A</div>
+          <div style="width:60px;height:60px;border-radius:50%;border:2px solid var(--moore);background:rgba(56,189,248,0.1);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--moore);">S1<br>out=B</div>
+          <div style="width:60px;height:60px;border-radius:50%;border:2px solid var(--moore);background:rgba(56,189,248,0.1);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--moore);">S2<br>out=C</div>
+          <div style="width:60px;height:60px;border-radius:50%;border:2px solid var(--moore);background:rgba(56,189,248,0.1);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--moore);">S3<br>out=D</div>
+        </div>
+        <p style="color:var(--moore);font-size:0.85rem;margin-top:0.5rem;font-weight:600;">Moore: 최소 4개 상태</p>
+        <p style="color:var(--dim);font-size:0.8rem;">출력마다 전용 상태 필요</p>
+      </div>
+      <div style="text-align:center;">
+        <div style="display:flex;gap:0.4rem;justify-content:center;align-items:center;">
+          <div style="width:80px;height:80px;border-radius:50%;border:2px solid var(--mealy);background:rgba(245,158,11,0.1);display:flex;align-items:center;justify-content:center;font-size:0.85rem;color:var(--mealy);font-weight:600;">S0</div>
+          <div style="display:flex;flex-direction:column;gap:0.2rem;font-size:0.7rem;text-align:left;">
+            <span style="color:var(--dim);">i=00 → out=A</span>
+            <span style="color:var(--dim);">i=01 → out=B</span>
+            <span style="color:var(--dim);">i=10 → out=C</span>
+            <span style="color:var(--dim);">i=11 → out=D</span>
+          </div>
+        </div>
+        <p style="color:var(--mealy);font-size:0.85rem;margin-top:0.5rem;font-weight:600;">Mealy: 1개 상태로 충분</p>
+        <p style="color:var(--dim);font-size:0.8rem;">입력 조합으로 출력 구분</p>
+      </div>
+    </div>
+
+    <div class="formula" style="margin-top:1rem;border-color:var(--accent);">
+      <span style="color:var(--accent);">복잡도가 사라지는 게 아니라</span><br>
+      <span style="color:var(--dim);font-size:0.9rem;"><strong>상태(원)</strong>에서 <strong>전이(화살표)</strong>로 이동하는 것</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Side by Side Comparison ============ -->
+<div class="card">
+  <h2>비교</h2>
+  <table>
+    <tr>
+      <th></th>
+      <th style="color:var(--moore);">Moore</th>
+      <th style="color:var(--mealy);">Mealy</th>
+    </tr>
+    <tr><td><strong>출력 결정</strong></td><td>상태만</td><td>상태 + 입력</td></tr>
+    <tr><td><strong>출력 함수</strong></td><td>λ: S → O</td><td>λ: S &times; I → O</td></tr>
+    <tr><td><strong>출력 변경</strong></td><td>클럭 edge (1 cycle 지연)</td><td>입력 변화 즉시</td></tr>
+    <tr><td><strong>상태 수</strong></td><td>더 많음</td><td>더 적음</td></tr>
+    <tr><td><strong>출력 위치</strong></td><td>원(상태) 안에 표기</td><td>화살표(전이) 위에 표기</td></tr>
+    <tr><td><strong>Glitch</strong></td><td>없음 (registered)</td><td>가능 (combinational)</td></tr>
+    <tr><td><strong>회로 대응</strong></td><td>registered output</td><td>combinational output</td></tr>
+    <tr><td><strong>비유</strong></td><td>신호등 (상태=색=행동)</td><td>자판기 (같은 대기인데 입력따라 다름)</td></tr>
+  </table>
+
+  <div class="formula" style="margin-top:1rem;">
+    <span style="color:var(--accent);">Moore는 Mealy의 특수한 경우</span><br>
+    <span style="color:var(--dim);font-size:0.9rem;">λ(s, i) 에서 i를 무시하면 → λ(s) = Moore</span>
+  </div>
+
+  <h3>SEC에서 Mealy로 통일하는 이유</h3>
+  <p style="color:var(--dim);font-size:0.9rem;">
+    실제 회로는 registered output과 combinational output이 섞여있습니다.<br>
+    Mealy 모델(<code>λ: S &times; I → O</code>)이 두 경우를 모두 표현할 수 있으므로,<br>
+    SEC 도구는 <strong>Mealy로 통일</strong>합니다.<br><br>
+    이것이 Miter 구성에서 중요한 이유: 같은 상태 쌍 <code>(s<sub>R</sub>, s<sub>I</sub>)</code>이라도<br>
+    <strong>어떤 입력을 넣느냐에 따라</strong> 출력이 달라질 수 있기 때문입니다.
+  </p>
+</div>
+
+<script>
+// ============ Traffic Light (Moore) ============
+let tlState = 'red';
+function toggleTraffic() {
+  tlState = (tlState === 'red') ? 'green' : 'red';
+  document.getElementById('tl-red').className = 'light ' + (tlState === 'red' ? 'red-on' : 'red-off');
+  document.getElementById('tl-green').className = 'light ' + (tlState === 'green' ? 'green-on' : 'green-off');
+  const out = tlState === 'red' ? '정지' : '출발';
+  const color = tlState === 'red' ? '#f87171' : '#34d399';
+  document.getElementById('tl-output').textContent = '출력: ' + out;
+  document.getElementById('tl-output').style.color = color;
+  document.getElementById('tl-state').textContent = tlState === 'red' ? '빨간불' : '초록불';
+  document.getElementById('tl-state').style.color = color;
+  document.getElementById('tl-out-text').textContent = out;
+  document.getElementById('tl-out-text').style.color = color;
+}
+
+// ============ 2-bit Counter ============
+const counterStates = ['00','01','10','11'];
+let counterIdx = 0;
+const counterPos = [{x:80,y:60},{x:210,y:60},{x:210,y:170},{x:80,y:170}];
+
+function drawCounter() {
+  const c = document.getElementById('canvas-counter');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,280,240);
+
+  counterStates.forEach((s,i) => {
+    const p = counterPos[i];
+    const active = i === counterIdx;
+    const isOut = s === '11';
+    ctx.beginPath(); ctx.arc(p.x,p.y,32,0,Math.PI*2);
+    ctx.fillStyle = active ? (isOut ? 'rgba(52,211,153,0.3)' : 'rgba(56,189,248,0.3)') : 'rgba(255,255,255,0.03)';
+    ctx.fill();
+    ctx.strokeStyle = active ? (isOut ? '#34d399' : '#38bdf8') : '#475569';
+    ctx.lineWidth = active ? 3 : 1.5; ctx.stroke();
+    ctx.fillStyle = active ? (isOut ? '#34d399' : '#38bdf8') : '#94a3b8';
+    ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(s, p.x, p.y + 5);
+    if (isOut) { ctx.font = '10px sans-serif'; ctx.fillText('out=1', p.x, p.y + 20); }
+  });
+
+  // Arrows
+  const arrows = [[0,1],[1,2],[2,3],[3,0]];
+  arrows.forEach(([from,to]) => {
+    const f = counterPos[from], t = counterPos[to];
+    const dx = t.x-f.x, dy = t.y-f.y;
+    const len = Math.sqrt(dx*dx+dy*dy);
+    const ux = dx/len, uy = dy/len;
+    const sx = f.x + ux*35, sy = f.y + uy*35;
+    const ex = t.x - ux*35, ey = t.y - uy*35;
+    const active = from === counterIdx;
+    ctx.strokeStyle = active ? '#38bdf8' : '#475569';
+    ctx.lineWidth = active ? 2 : 1;
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
+    // arrowhead
+    const ax = ex - ux*8 + uy*4, ay = ey - uy*8 - ux*4;
+    const bx = ex - ux*8 - uy*4, by = ey - uy*8 + ux*4;
+    ctx.beginPath(); ctx.moveTo(ex,ey); ctx.lineTo(ax,ay); ctx.lineTo(bx,by); ctx.fill();
+  });
+
+  // Init arrow
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(15,60); ctx.lineTo(48,60); ctx.stroke();
+  ctx.fillStyle = '#94a3b8'; ctx.font = '9px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('init', 10, 50);
+
+  document.getElementById('cnt-val').textContent = counterStates[counterIdx];
+  const isOut = counterIdx === 3;
+  document.getElementById('cnt-out').textContent = isOut ? '1' : '0';
+  document.getElementById('cnt-out').style.color = isOut ? '#34d399' : 'var(--text)';
+}
+
+function counterStep() { counterIdx = (counterIdx + 1) % 4; drawCounter(); }
+function counterReset() { counterIdx = 0; drawCounter(); }
+
+// State explosion bar chart
+function drawExplosion() {
+  const container = document.getElementById('explosion-viz');
+  if (!container) return;
+  const data = [{ff:2,log:1},{ff:4,log:2},{ff:8,log:3.4},{ff:16,log:5.8},{ff:32,log:10.6},{ff:64,log:20.3},{ff:128,log:39.6}];
+  const maxLog = 39.6;
+  container.innerHTML = '';
+  data.forEach(d => {
+    const h = Math.max(8, (d.log / maxLog) * 160);
+    const hue = d.ff <= 8 ? 160 : d.ff <= 16 ? 45 : 0;
+    const col = `hsl(${hue}, 70%, 55%)`;
+    container.innerHTML += '<div style="display:flex;flex-direction:column;align-items:center;flex:1;">' +
+      '<div style="font-size:0.7rem;color:var(--dim);margin-bottom:2px;">2^'+d.ff+'</div>' +
+      '<div style="width:100%;height:'+h+'px;background:'+col+';border-radius:4px 4px 0 0;opacity:0.7;"></div>' +
+      '<div style="font-size:0.7rem;color:var(--dim);margin-top:2px;">'+d.ff+'</div></div>';
+  });
+}
+
+setTimeout(() => { drawCounter(); drawExplosion(); }, 50);
+
+// ============ Why Moore vs Mealy state count ============
+let whyMooreState = 'idle';
+function drawWhyMoore() {
+  const c = document.getElementById('canvas-why-moore');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 280, 220);
+
+  const idleActive = whyMooreState === 'idle';
+  const grantActive = whyMooreState === 'grant';
+
+  // IDLE circle
+  ctx.beginPath(); ctx.arc(90, 110, 45, 0, Math.PI*2);
+  ctx.fillStyle = idleActive ? 'rgba(56,189,248,0.25)' : 'rgba(56,189,248,0.08)';
+  ctx.fill();
+  ctx.strokeStyle = idleActive ? '#38bdf8' : '#475569';
+  ctx.lineWidth = idleActive ? 3 : 1.5; ctx.stroke();
+  ctx.fillStyle = idleActive ? '#38bdf8' : '#94a3b8';
+  ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('IDLE', 90, 105);
+  ctx.font = '11px sans-serif';
+  ctx.fillText('gnt=0', 90, 122);
+
+  // GRANT circle
+  ctx.beginPath(); ctx.arc(200, 110, 45, 0, Math.PI*2);
+  ctx.fillStyle = grantActive ? 'rgba(52,211,153,0.25)' : 'rgba(52,211,153,0.08)';
+  ctx.fill();
+  ctx.strokeStyle = grantActive ? '#34d399' : '#475569';
+  ctx.lineWidth = grantActive ? 3 : 1.5; ctx.stroke();
+  ctx.fillStyle = grantActive ? '#34d399' : '#94a3b8';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('GRANT', 200, 105);
+  ctx.font = '11px sans-serif';
+  ctx.fillText('gnt=1', 200, 122);
+
+  // Arrow IDLE -> GRANT (top)
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(130, 90); ctx.lineTo(160, 90); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(156, 85); ctx.lineTo(160, 90); ctx.lineTo(156, 95); ctx.stroke();
+  ctx.fillStyle = '#f59e0b'; ctx.font = '10px sans-serif';
+  ctx.fillText('req=1', 145, 82);
+
+  // Arrow GRANT -> IDLE (bottom)
+  ctx.strokeStyle = '#94a3b8';
+  ctx.beginPath(); ctx.moveTo(160, 130); ctx.lineTo(130, 130); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(134, 125); ctx.lineTo(130, 130); ctx.lineTo(134, 135); ctx.stroke();
+  ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif';
+  ctx.fillText('auto', 145, 148);
+
+  // Self-loop on IDLE
+  ctx.strokeStyle = '#475569';
+  ctx.beginPath(); ctx.arc(90, 50, 20, 0.2*Math.PI, 0.8*Math.PI); ctx.stroke();
+  ctx.fillStyle = '#94a3b8'; ctx.font = '9px sans-serif';
+  ctx.fillText('req=0', 90, 22);
+
+  // Init
+  ctx.strokeStyle = '#94a3b8';
+  ctx.beginPath(); ctx.moveTo(15, 110); ctx.lineTo(45, 110); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(40, 105); ctx.lineTo(45, 110); ctx.lineTo(40, 115); ctx.stroke();
+
+  // Count label
+  ctx.fillStyle = '#38bdf8'; ctx.font = 'bold 12px sans-serif';
+  ctx.fillText('상태 2개', 145, 200);
+}
+
+function whyMooreClick() {
+  if (whyMooreState === 'idle') {
+    whyMooreState = 'grant';
+    document.getElementById('why-moore-state').textContent = 'GRANT';
+    document.getElementById('why-moore-state').style.color = '#34d399';
+    document.getElementById('why-moore-gnt').textContent = '1';
+    document.getElementById('why-moore-gnt').style.color = '#34d399';
+    document.getElementById('why-moore-btn').textContent = '다음 클럭 (돌아감)';
+  } else {
+    whyMooreState = 'idle';
+    document.getElementById('why-moore-state').textContent = 'IDLE';
+    document.getElementById('why-moore-state').style.color = '#38bdf8';
+    document.getElementById('why-moore-gnt').textContent = '0';
+    document.getElementById('why-moore-gnt').style.color = 'var(--text)';
+    document.getElementById('why-moore-btn').textContent = 'req=1 (클럭)';
+  }
+  drawWhyMoore();
+}
+
+function whyMealyClick(req) {
+  const gnt = req;
+  document.getElementById('why-mealy-state').textContent = 'IDLE (변함없음)';
+  document.getElementById('why-mealy-gnt').textContent = gnt;
+  document.getElementById('why-mealy-gnt').style.color = gnt ? '#34d399' : 'var(--text)';
+  drawWhyMealy(req);
+}
+
+function drawWhyMealy(activeReq) {
+  const c = document.getElementById('canvas-why-mealy');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 280, 220);
+
+  // Single IDLE circle (always active)
+  ctx.beginPath(); ctx.arc(140, 110, 55, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(245,158,11,0.2)'; ctx.fill();
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('IDLE', 140, 115);
+
+  // Self-loop top (req=0/gnt=0)
+  const loop0Color = activeReq === 0 ? '#f87171' : '#475569';
+  ctx.strokeStyle = loop0Color; ctx.lineWidth = activeReq === 0 ? 2.5 : 1.5;
+  ctx.beginPath(); ctx.arc(100, 40, 25, 0.1*Math.PI, 0.9*Math.PI); ctx.stroke();
+  ctx.fillStyle = loop0Color; ctx.font = (activeReq === 0 ? 'bold ' : '') + '10px sans-serif';
+  ctx.fillText('req=0 / gnt=0', 100, 8);
+
+  // Self-loop right (req=1/gnt=1)
+  const loop1Color = activeReq === 1 ? '#34d399' : '#475569';
+  ctx.strokeStyle = loop1Color; ctx.lineWidth = activeReq === 1 ? 2.5 : 1.5;
+  ctx.beginPath(); ctx.arc(190, 45, 25, 0.3*Math.PI, 1.2*Math.PI,); ctx.stroke();
+  ctx.fillStyle = loop1Color; ctx.font = (activeReq === 1 ? 'bold ' : '') + '10px sans-serif';
+  ctx.fillText('req=1 / gnt=1', 205, 15);
+
+  // Init
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(15, 110); ctx.lineTo(85, 110); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(80, 105); ctx.lineTo(85, 110); ctx.lineTo(80, 115); ctx.stroke();
+
+  // Count label
+  ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 12px sans-serif';
+  ctx.fillText('상태 1개', 140, 200);
+
+  // No state change indicator
+  if (activeReq !== undefined) {
+    ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif';
+    ctx.fillText('상태 이동 없음!', 140, 185);
+  }
+}
+
+// Init canvases
+setTimeout(() => { drawWhyMoore(); drawWhyMealy(); }, 50);
+
+// Draw Moore FSM
+(function() {
+  const c = document.getElementById('canvas-moore');
+  const ctx = c.getContext('2d');
+
+  // Red state
+  ctx.beginPath(); ctx.arc(90, 100, 45, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(248,113,113,0.15)'; ctx.fill();
+  ctx.strokeStyle = '#f87171'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#f87171'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('빨간불', 90, 95);
+  ctx.font = '11px sans-serif'; ctx.fillText('out=정지', 90, 112);
+
+  // Green state
+  ctx.beginPath(); ctx.arc(210, 100, 45, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(52,211,153,0.15)'; ctx.fill();
+  ctx.strokeStyle = '#34d399'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#34d399'; ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('초록불', 210, 95);
+  ctx.font = '11px sans-serif'; ctx.fillText('out=출발', 210, 112);
+
+  // Arrows
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+  // top arrow (red -> green)
+  ctx.beginPath(); ctx.moveTo(130, 75); ctx.lineTo(170, 75); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(165, 70); ctx.lineTo(170, 75); ctx.lineTo(165, 80); ctx.stroke();
+  // bottom arrow (green -> red)
+  ctx.beginPath(); ctx.moveTo(170, 125); ctx.lineTo(130, 125); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(135, 120); ctx.lineTo(130, 125); ctx.lineTo(135, 130); ctx.stroke();
+
+  // Init arrow
+  ctx.beginPath(); ctx.moveTo(20, 100); ctx.lineTo(45, 100); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(40, 95); ctx.lineTo(45, 100); ctx.lineTo(40, 105); ctx.stroke();
+  ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('init', 10, 90);
+
+  // Label
+  ctx.fillStyle = '#38bdf8'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('출력: 원 안에 표기', 150, 180);
+})();
+
+// ============ Vending Machine (Mealy) ============
+let vendBalance = 0;
+const PRICE = 500;
+
+function vendInsert(amount) {
+  vendBalance += amount;
+  document.getElementById('vend-input').textContent = amount + '원 투입';
+  document.getElementById('vend-balance').textContent = vendBalance + '원';
+
+  const display = document.getElementById('vend-display');
+  const output = document.getElementById('vend-output');
+
+  if (vendBalance >= PRICE) {
+    display.textContent = '음료가 나옵니다!';
+    display.style.color = '#34d399';
+    display.style.borderColor = '#34d399';
+    output.textContent = '음료 배출';
+    output.style.color = '#34d399';
+    document.getElementById('vend-state').textContent = '배출';
+    document.getElementById('vend-state').style.color = '#34d399';
+    setTimeout(() => {
+      vendBalance = vendBalance - PRICE;
+      document.getElementById('vend-balance').textContent = vendBalance + '원';
+      display.textContent = '동전을 넣어주세요';
+      display.style.color = 'var(--text)';
+      display.style.borderColor = 'var(--border)';
+      document.getElementById('vend-state').textContent = '대기';
+      document.getElementById('vend-state').style.color = 'var(--text)';
+      output.textContent = '-';
+      output.style.color = 'var(--text)';
+    }, 1500);
+  } else {
+    display.textContent = '잔액: ' + vendBalance + '원 (부족)';
+    display.style.color = '#f59e0b';
+    display.style.borderColor = '#f59e0b';
+    output.textContent = '부족 표시';
+    output.style.color = '#f59e0b';
+    document.getElementById('vend-state').textContent = '대기';
+  }
+}
+
+function vendReset() {
+  vendBalance = 0;
+  document.getElementById('vend-balance').textContent = '0원';
+  document.getElementById('vend-input').textContent = '-';
+  document.getElementById('vend-output').textContent = '-';
+  document.getElementById('vend-output').style.color = 'var(--text)';
+  document.getElementById('vend-state').textContent = '대기';
+  document.getElementById('vend-state').style.color = 'var(--text)';
+  const display = document.getElementById('vend-display');
+  display.textContent = '동전을 넣어주세요';
+  display.style.color = 'var(--text)';
+  display.style.borderColor = 'var(--border)';
+}
+
+// Draw Mealy FSM
+(function() {
+  const c = document.getElementById('canvas-mealy');
+  const ctx = c.getContext('2d');
+
+  // 대기 state
+  ctx.beginPath(); ctx.arc(90, 110, 45, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(245,158,11,0.12)'; ctx.fill();
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('대기', 90, 115);
+
+  // 배출 state
+  ctx.beginPath(); ctx.arc(220, 110, 40, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(52,211,153,0.12)'; ctx.fill();
+  ctx.strokeStyle = '#34d399'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#34d399'; ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('배출', 220, 115);
+
+  // Self-loop on 대기 (100원/부족)
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(90, 45, 25, 0.3*Math.PI, 0.7*Math.PI); ctx.stroke();
+  ctx.fillStyle = '#f59e0b'; ctx.font = '10px sans-serif';
+  ctx.fillText('100원 / 부족', 90, 15);
+
+  // Arrow 대기 -> 배출 (500원/음료)
+  ctx.strokeStyle = '#34d399'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(132, 95); ctx.lineTo(182, 95); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(177, 90); ctx.lineTo(182, 95); ctx.lineTo(177, 100); ctx.stroke();
+  ctx.fillStyle = '#34d399'; ctx.font = '10px sans-serif';
+  ctx.fillText('500원 / 음료', 157, 85);
+
+  // Arrow 배출 -> 대기
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(182, 130); ctx.lineTo(132, 130); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(137, 125); ctx.lineTo(132, 130); ctx.lineTo(137, 135); ctx.stroke();
+  ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif';
+  ctx.fillText('자동 / -', 157, 148);
+
+  // Init arrow
+  ctx.strokeStyle = '#94a3b8';
+  ctx.beginPath(); ctx.moveTo(20, 110); ctx.lineTo(45, 110); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(40, 105); ctx.lineTo(45, 110); ctx.lineTo(40, 115); ctx.stroke();
+  ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('init', 10, 100);
+
+  // Label
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f59e0b'; ctx.font = '11px sans-serif';
+  ctx.fillText('출력: 화살표 위에 표기 (입력/출력)', 150, 200);
+})();
+</script>
+
+</body>
+</html>
