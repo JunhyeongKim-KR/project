@@ -281,7 +281,8 @@
 </head>
 <body>
 
-<div class="header">
+<div style="padding:20px 20px 0;"><a href="index.html" style="color:#8899aa;text-decoration:none;font-size:0.85rem;">&larr; Formal Verification Home</a></div>
+<div class="header" style="padding-top:20px;">
   <h1>VCformal SEQ</h1>
   <p>Sequential Equivalence Checking의 수학적 기초</p>
 </div>
@@ -369,7 +370,7 @@
       <tr><td>비교 대상</td><td>조합 로직 cone</td><td>전체 I/O 동작</td></tr>
       <tr><td>레지스터 매핑</td><td>필수 (1:1)</td><td>불필요</td></tr>
       <tr><td>Retiming</td><td>처리 불가</td><td>처리 가능</td></tr>
-      <tr><td>복잡도</td><td>NP-complete</td><td>PSPACE-complete</td></tr>
+      <tr><td>복잡도</td><td>coNP-complete</td><td>PSPACE-complete</td></tr>
     </table>
   </div>
 
@@ -384,9 +385,10 @@
 상태 공간: &nbsp;<span class="func">S<sub>P</sub></span> = <span class="func">S<sub>R</sub></span> × <span class="func">S<sub>I</sub></span><br>
 초기 상태: &nbsp;<span class="func">s₀<sub>P</sub></span> = (<span class="func">s₀<sub>R</sub></span>, <span class="func">s₀<sub>I</sub></span>)<br>
 전이 함수: &nbsp;<span class="func">δ<sub>P</sub></span>((s<sub>R</sub>, s<sub>I</sub>), x) = (<span class="func">δ<sub>R</sub></span>(s<sub>R</sub>, x), <span class="func">δ<sub>I</sub></span>(s<sub>I</sub>, x))<br>
-<span class="highlight">오류 상태: &nbsp;Bad</span> = { (s<sub>R</sub>, s<sub>I</sub>) | <span class="op">∃</span>x: λ<sub>R</sub>(s<sub>R</sub>, x) <span class="op">≠</span> λ<sub>I</sub>(s<sub>I</sub>, x) }<br><br>
+<span class="highlight">Miter 출력</span>: &nbsp;<span class="func">miter</span>(s<sub>R</sub>, s<sub>I</sub>, x) = λ<sub>R</sub>(s<sub>R</sub>, x) <span class="op">⊕</span> λ<sub>I</sub>(s<sub>I</sub>, x)<br>
+<span class="highlight">안전 속성</span>: &nbsp;<span class="op">∀</span> reachable (s<sub>R</sub>, s<sub>I</sub>), <span class="op">∀</span>x: &nbsp;<span class="func">miter</span>(s<sub>R</sub>, s<sub>I</sub>, x) = 0<br><br>
 <span class="keyword">핵심 변환</span>:<br>
-&nbsp;&nbsp;R ≡<sub>seq</sub> I &nbsp;<span class="op">⟺</span>&nbsp; <span class="highlight">Bad</span> is <span class="keyword">UNREACHABLE</span> from s₀<sub>P</sub>
+&nbsp;&nbsp;R ≡<sub>seq</sub> I &nbsp;<span class="op">⟺</span>&nbsp; <span class="op">∀</span> reachable states, <span class="op">∀</span> inputs: <span class="func">miter</span> = 0
     </div>
 
     <div class="diagram-container">
@@ -447,27 +449,35 @@
         <div class="math-block" style="font-size:0.9em;">
 <span class="comment">// 회로를 k 사이클 unroll:</span><br><br>
 <span class="func">Init</span>(s₀)<br>
-<span class="op">∧</span> <span class="func">T</span>(s₀, s₁)<br>
-<span class="op">∧</span> <span class="func">T</span>(s₁, s₂)<br>
+<span class="op">∧</span> <span class="func">T</span>(s₀, <span style="color:#60a5fa;">i₀</span>, s₁)<br>
+<span class="op">∧</span> <span class="func">T</span>(s₁, <span style="color:#60a5fa;">i₁</span>, s₂)<br>
 <span class="op">∧</span> ...<br>
-<span class="op">∧</span> <span class="func">T</span>(sₖ₋₁, sₖ)<br>
-<span class="op">∧</span> <span class="highlight">Bad</span>(sₖ)<br><br>
-<span class="keyword">UNSAT</span> → k 내 안전<br>
+<span class="op">∧</span> <span class="func">T</span>(sₖ₋₁, <span style="color:#60a5fa;">iₖ₋₁</span>, sₖ)<br>
+<span class="op">∧</span> (<span class="highlight">Bad</span>(s₀) <span class="op">∨</span> <span class="highlight">Bad</span>(s₁) <span class="op">∨</span> ... <span class="op">∨</span> <span class="highlight">Bad</span>(sₖ))<br><br>
+<span class="keyword">UNSAT</span> → k 내 모든 step 안전<br>
 <span class="keyword" style="color:#f87171;">SAT</span> → 반례 발견!
         </div>
       </div>
       <div class="side-box">
         <h4 style="color:#10b981;">k-Induction (완전 증명)</h4>
         <div class="math-block" style="font-size:0.9em;">
-<span class="comment">// Base Case:</span><br>
-<span class="func">Init</span> → ¬<span class="highlight">Bad</span> &nbsp;(0~k step)<br><br>
-<span class="comment">// Inductive Step:</span><br>
-¬<span class="highlight">Bad</span>(s₀)<br>
-<span class="op">∧</span> <span class="func">T</span>(s₀, s₁) <span class="op">∧</span> ¬<span class="highlight">Bad</span>(s₁)<br>
-<span class="op">∧</span> ...<br>
-<span class="op">∧</span> <span class="func">T</span>(sₖ₋₁, sₖ)<br>
-→ ¬<span class="highlight">Bad</span>(sₖ)<br><br>
+<span class="comment">// Base Case (SAT query → UNSAT 확인):</span><br>
+<span class="func">Init</span>(s₀) <span class="op">∧</span> <span class="func">T</span>(s₀,<span style="color:#60a5fa;">i₀</span>,s₁) <span class="op">∧</span> ... <span class="op">∧</span> <span class="func">T</span>(sₖ₋₁,<span style="color:#60a5fa;">iₖ₋₁</span>,sₖ)<br>
+<span class="op">∧</span> (<span class="highlight">Bad</span>(s₀) <span class="op">∨</span> ... <span class="op">∨</span> <span class="highlight">Bad</span>(sₖ))<br><br>
+<span class="comment">// Inductive Step (SAT query → UNSAT 확인):</span><br>
+¬<span class="highlight">Bad</span>(s₀) <span class="op">∧</span> <span class="func">T</span>(s₀,<span style="color:#60a5fa;">i₀</span>,s₁) <span class="op">∧</span> ¬<span class="highlight">Bad</span>(s₁)<br>
+<span class="op">∧</span> ... <span class="op">∧</span> <span class="func">T</span>(sₖ₋₁,<span style="color:#60a5fa;">iₖ₋₁</span>,sₖ)<br>
+<span class="op">∧</span> <span class="highlight">Bad</span>(sₖ)<br><br>
 <span class="keyword" style="color:#34d399;">둘 다 UNSAT → 완전 증명!</span>
+        </div>
+        <div style="margin-top:0.8rem;padding:0.8rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;font-size:0.82rem;">
+          <strong style="color:#10b981;">Auxiliary Invariant가 필요한 이유:</strong><br>
+          Inductive step은 <em>임의 상태</em>에서 시작 — 실제로 <strong>도달 불가능한 상태</strong>도 포함됨.<br>
+          도달 불가능한 상태에서 Bad가 성립하면 false counterexample 발생.<br><br>
+          해결: <span class="func">Inv</span>(s)를 추가하여 unreachable 상태 제외:<br>
+          <code style="color:#e0e6f0;">¬Bad(s₀) ∧ Inv(s₀) ∧ T(s₀,i₀,s₁) ∧ ... → ¬Bad(sₖ) ∧ Inv(sₖ)</code><br><br>
+          k를 늘리면 "k개 연속 ¬Bad" 조건이 unreachable 상태를 자연 제외.<br>
+          그래도 실패 시 → <strong>interpolation</strong>으로 invariant 자동 생성.
         </div>
       </div>
     </div>
@@ -488,6 +498,50 @@
       <tr><td>k-Induction</td><td>완전</td><td>SAT 기반 + 완전 증명</td><td>invariant 필요할 수 있음</td></tr>
       <tr><td>Interpolation</td><td>완전</td><td>overapprox.으로 귀납 강화</td><td>수렴 보장 없음</td></tr>
     </table>
+  </div>
+
+  <!-- ==================== LATENCY OFFSET ==================== -->
+  <div class="step-card">
+    <div class="step-num" style="background:linear-gradient(135deg,#f59e0b,#ef4444);">+</div>
+    <h2>Pipeline SEC: Latency Offset</h2>
+    <p>Retiming/Pipeline 변환 시 출력 latency가 달라집니다. SEC는 이를 수학적으로 보정합니다.</p>
+
+    <div class="math-block">
+<span class="comment">// Spec: latency = L<sub>R</sub>, &nbsp;Impl: latency = L<sub>I</sub></span><br>
+<span class="comment">// Offset N = L<sub>I</sub> - L<sub>R</sub></span><br><br>
+<span class="keyword">Latency-Adjusted Equivalence</span>:<br><br>
+<span class="op">∀</span>k <span class="op">≥</span> 0, <span class="op">∀</span> input sequence x₀, x₁, ...:<br>
+&nbsp;&nbsp;λ<sub>R</sub>(s<sub>R</sub><sup>(k)</sup>, x<sub>k</sub>) = λ<sub>I</sub>(s<sub>I</sub><sup>(k+N)</sup>, x<sub>k+N</sub>)<br><br>
+<span class="comment">// 즉, Impl의 출력을 N cycle 뒤에서 비교</span>
+    </div>
+
+    <div class="side-by-side">
+      <div class="side-box">
+        <h4 style="color:#38bdf8;">예시: 2-stage → 3-stage (N=1)</h4>
+        <div class="math-block" style="font-size:0.85em;">
+<span class="comment">Cycle:  1  2  3  4  5  6</span><br>
+<span style="color:#38bdf8;">Spec:</span>  ·  · <span class="keyword">R1</span>  ·  · <span class="keyword">R2</span><br>
+<span style="color:#f59e0b;">Impl:</span>  ·  ·  · <span class="keyword">R1</span>  ·  · <span class="keyword">R2</span><br>
+<span class="comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↕</span><br>
+<span class="comment">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset=1</span>
+        </div>
+      </div>
+      <div class="side-box">
+        <h4 style="color:#10b981;">Miter에서의 처리</h4>
+        <div class="math-block" style="font-size:0.85em;">
+<span class="comment">// Impl 출력에 N-cycle shift register 삽입:</span><br><br>
+o<sub>I_delayed</sub> = <span class="func">delay</span>(o<sub>I</sub>, N)<br><br>
+<span class="func">miter</span> = o<sub>R</sub> <span class="op">⊕</span> o<sub>I_delayed</sub><br><br>
+<span class="comment">// 또는 Spec에 N-cycle 추가 입력 파이프라인</span><br>
+<span class="comment">// VCF TCL: set_seq_equiv_latency -latency N</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem;padding:0.8rem;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:8px;font-size:0.85rem;">
+      <strong style="color:#f59e0b;">적용 대상:</strong>
+      Retiming (FF 위치 이동), Pipeline stage 추가/제거, Clock gating (latency 변화 없으나 동작 조건 변경)
+    </div>
   </div>
 
   <!-- ==================== STEP 6 ==================== -->
