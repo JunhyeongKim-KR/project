@@ -376,15 +376,16 @@
 </head>
 <body>
 
+<p style="margin-bottom:0.5rem;"><a href="index.html" style="color:var(--text-dim);text-decoration:none;font-size:0.85rem;">&larr; Formal Verification Home</a></p>
 <h1>Formal Verification Workflow</h1>
 <p class="subtitle">LEC (Formality) / SEC (Sequential Equivalence) / FPV (Model Checking) - Practical Guide</p>
 
 <div class="tab-nav">
-  <button class="tab-btn active" onclick="showTab('lec')">LEC Workflow</button>
-  <button class="tab-btn" onclick="showTab('sec')">SEC Workflow</button>
-  <button class="tab-btn" onclick="showTab('fpv')">FPV Workflow</button>
-  <button class="tab-btn" onclick="showTab('compare')">LEC vs SEC vs FPV</button>
-  <button class="tab-btn" onclick="showTab('ref')">Quick Reference</button>
+  <button class="tab-btn active" onclick="showTab('lec',event)">LEC Workflow</button>
+  <button class="tab-btn" onclick="showTab('sec',event)">SEC Workflow</button>
+  <button class="tab-btn" onclick="showTab('fpv',event)">FPV Workflow</button>
+  <button class="tab-btn" onclick="showTab('compare',event)">LEC vs SEC vs FPV</button>
+  <button class="tab-btn" onclick="showTab('ref',event)">Quick Reference</button>
 </div>
 
 <!-- ==================== TAB: LEC ==================== -->
@@ -569,7 +570,7 @@
 quit</code></pre>
 
       <h3>실행 명령</h3>
-      <pre><code>FM = /data/tools_snps/snps/fm/V-2023.12-SP5/bin/fm_shell
+      <pre><code>FM = $FM_HOME/bin/fm_shell
 $(FM) -f run.tcl |& tee lec.log</code></pre>
     </div>
 
@@ -820,7 +821,7 @@ Memory: <span class="num">938</span> MB</code></pre>
 
 <span class="cmt"># 2. RTL + SVA 읽기</span>
 <span class="fn">read_file</span> -top arbiter_rr -format sverilog -sva {
-  rtl/arbiter_rr.sv
+  design/arbiter_rr.sv
   sva/arbiter_props.sv
 }
 
@@ -844,7 +845,7 @@ Memory: <span class="num">938</span> MB</code></pre>
     <div id="fpv-run" class="detail-panel">
       <h3>VCF 실행 명령</h3>
       <pre><code><span class="cmt"># 환경변수 설정</span>
-<span class="kw">export</span> VC_STATIC_HOME=/data/tools_snps/snps/vc_static/V-2023.12-SP2-4
+<span class="kw">export</span> VC_STATIC_HOME=$VC_STATIC_HOME
 <span class="kw">export</span> PATH=$VC_STATIC_HOME/bin:$PATH
 
 <span class="cmt"># Batch 모드 실행</span>
@@ -860,8 +861,8 @@ vcf -batch -fmode FPV <span class="str">-fml_elite</span> -f run.tcl   <span cla
 vcf -batch -fmode FPV <span class="str">-fml_legacy</span> -f run.tcl  <span class="cmt"># Legacy fallback</span></code></pre>
 
       <h3>Makefile</h3>
-      <pre><code>VCF = /data/tools_snps/snps/vc_static/V-2023.12-SP2-4/bin/vcf
-<span class="kw">export</span> VC_STATIC_HOME = /data/tools_snps/snps/vc_static/V-2023.12-SP2-4
+      <pre><code>VCF = $VC_STATIC_HOME/bin/vcf
+<span class="kw">export</span> VC_STATIC_HOME = $VC_STATIC_HOME
 
 run:
 	$(VCF) -batch -fmode FPV -f run.tcl |& tee fpv.log
@@ -1037,7 +1038,7 @@ Latch Bitwise   = <span class="num">0</span>
 
 <span class="cmt"># 두 설계를 함께 로드 (spec top으로)</span>
 <span class="fn">read_file</span> -top madd_pipe2 -format sverilog {
-  rtl/madd_pipe2.sv rtl/madd_pipe3.sv
+  design/madd_pipe2.sv design/madd_pipe3.sv
 }
 
 <span class="fn">create_clock</span> clk -period 10
@@ -1349,26 +1350,29 @@ Comb logic      = <span class="num">20</span>
     <h3>디렉토리 구조</h3>
     <pre><code>vcformal/
 ├── .gitignore
-├── fpv/
-│   ├── rtl/arbiter_rr.sv       <span class="cmt"># Round-Robin Arbiter</span>
-│   ├── sva/arbiter_props.sv    <span class="cmt"># SVA Assertions + Bind</span>
-│   ├── run.tcl                 <span class="cmt"># FPV TCL script</span>
+├── lec/
+│   ├── design/data_proc.sv      <span class="cmt"># Ref: if/else add/sub</span>
+│   ├── design/data_proc_opt.sv  <span class="cmt"># Impl: unified adder</span>
+│   ├── run.tcl                  <span class="cmt"># Formality LEC script</span>
 │   └── Makefile
 ├── sec/
-│   ├── rtl/madd_pipe2.sv       <span class="cmt"># Spec: 2-stage pipeline</span>
-│   ├── rtl/madd_pipe3.sv       <span class="cmt"># Impl: 3-stage pipeline</span>
-│   ├── run.tcl                 <span class="cmt"># SEC TCL script</span>
+│   ├── design/madd_pipe2.sv     <span class="cmt"># Spec: 2-stage pipeline</span>
+│   ├── design/madd_pipe3.sv     <span class="cmt"># Impl: 3-stage pipeline</span>
+│   ├── run.tcl                  <span class="cmt"># VC Formal SEC script</span>
 │   └── Makefile
-└── docs/
-    ├── workflow.md
-    └── vcformal_workflow_viz.html</code></pre>
+├── fpv/
+│   ├── design/arbiter_rr.sv     <span class="cmt"># Round-Robin Arbiter</span>
+│   ├── sva/arbiter_props.sv     <span class="cmt"># SVA Assertions + Bind</span>
+│   ├── run.tcl                  <span class="cmt"># VC Formal FPV script</span>
+│   └── Makefile
+└── docs/</code></pre>
 
     <h3>서버 정보</h3>
     <table>
       <tr><td>Server</td><td>Remote build server</td></tr>
-      <tr><td>Formality</td><td>V-2023.12-SP5 &mdash; <code>/data/tools_snps/snps/fm/V-2023.12-SP5/bin/fm_shell</code></td></tr>
-      <tr><td>VC Formal</td><td>V-2023.12-SP2-4 &mdash; <code>/data/tools_snps/snps/vc_static/V-2023.12-SP2-4/bin/vcf</code></td></tr>
-      <tr><td>Workspace</td><td><code>~/work/2026-04-02_vcformal/vcformal/</code></td></tr>
+      <tr><td>Formality</td><td>V-2023.12-SP5 &mdash; <code>$FM_HOME/bin/fm_shell</code></td></tr>
+      <tr><td>VC Formal</td><td>V-2023.12-SP2-4 &mdash; <code>$VC_STATIC_HOME/bin/vcf</code></td></tr>
+      <tr><td>Workspace</td><td><code>~/work/vcformal/</code></td></tr>
       <tr><td>License</td><td>Formality (LEC) <span class="badge badge-proven">O 5석</span>, VC Formal (FPV/SEC) <span class="badge badge-fail">X</span></td></tr>
     </table>
 
@@ -1401,11 +1405,11 @@ Comb logic      = <span class="num">20</span>
 
 <script>
 // Tab navigation
-function showTab(name) {
+function showTab(name, e) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  event.target.classList.add('active');
+  e.target.classList.add('active');
 }
 
 // LEC detail panels

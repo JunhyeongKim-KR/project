@@ -480,15 +480,16 @@
 </head>
 <body>
 
+<p style="margin-bottom:0.5rem;"><a href="index.html" style="color:#94a3b8;text-decoration:none;font-size:0.85rem;">&larr; Formal Verification Home</a></p>
 <h1>Formal Verification</h1>
 <p class="subtitle">Sequential Equivalence Checking & Model Checking (Property Checking)</p>
 
 <div class="tab-nav">
-  <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
-  <button class="tab-btn" onclick="showTab('mc')">Model Checking</button>
-  <button class="tab-btn" onclick="showTab('sec')">SEC</button>
-  <button class="tab-btn" onclick="showTab('compare')">Comparison</button>
-  <button class="tab-btn" onclick="showTab('practice')">Practical Guide</button>
+  <button class="tab-btn active" onclick="showTab('overview',event)">Overview</button>
+  <button class="tab-btn" onclick="showTab('mc',event)">Model Checking</button>
+  <button class="tab-btn" onclick="showTab('sec',event)">SEC</button>
+  <button class="tab-btn" onclick="showTab('compare',event)">Comparison</button>
+  <button class="tab-btn" onclick="showTab('practice',event)">Practical Guide</button>
 </div>
 
 <!-- ==================== OVERVIEW ==================== -->
@@ -1218,11 +1219,11 @@
 
 <script>
   // Tab switching
-  function showTab(id) {
+  function showTab(id, e) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
     document.getElementById('tab-' + id).classList.add('active');
-    event.target.classList.add('active');
+    e.target.classList.add('active');
 
     // Animate BMC bar when MC tab is shown
     if (id === 'mc') {
