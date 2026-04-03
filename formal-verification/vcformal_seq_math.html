@@ -446,19 +446,95 @@
   <!-- ==================== STEP 4 ==================== -->
   <div class="step-card" id="step-3">
     <div class="step-num">4</div>
-    <h2>Reachability Analysis</h2>
-    <p>Bad 상태에 도달 가능한지를 판별합니다. 상태를 개별 열거하면 폭발하므로, <strong>심볼릭(symbolic)</strong> 방법을 사용합니다.</p>
+    <h2>BDD 기반 검증: RTL → BDD → Miter</h2>
+    <p>두 설계의 RTL을 각각 BDD로 변환하고, XOR(Miter)로 비교합니다.</p>
+
+    <!-- 4a: RTL → Boolean Function → BDD -->
+    <div class="math-block">
+<span class="keyword">Step 4a: RTL → BDD 변환</span><br><br>
+<span class="comment">// RTL 코드는 이미 Boolean 함수입니다:</span><br>
+<span class="comment">//   assign out = a &amp; b;  →  f(a,b) = a AND b</span><br>
+<span class="comment">//   assign out = sel ? a : b;  →  f(sel,a,b) = (sel AND a) OR (NOT sel AND b)</span><br><br>
+<span class="comment">// 합성 도구가 RTL의 모든 로직을 AND/OR/NOT 조합으로 분해</span><br>
+<span class="comment">// → 이것이 곧 Boolean 함수 → BDD로 자동 변환</span><br><br>
+<span class="func">RTL</span> &nbsp;→&nbsp; <span class="func">Gate-level Boolean</span> &nbsp;→&nbsp; <span class="func">BDD</span>
+    </div>
+
+    <!-- 4b: BDD란? -->
+    <div class="side-by-side">
+      <div class="side-box">
+        <h4 style="color:#a78bfa;">BDD (Binary Decision Diagram)란?</h4>
+        <div class="math-block" style="font-size:0.88em;">
+<span class="comment">// 상태 "집합"을 Boolean 함수로 표현하는 자료구조</span><br>
+<span class="comment">// 변수를 하나씩 보며 0/1 분기하는 트리</span><br><br>
+<span class="keyword">예:</span> f(a,b) = a AND b<br><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(a)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;\<br>
+&nbsp;&nbsp;a=0&nbsp;&nbsp; a=1<br>
+&nbsp;&nbsp;&nbsp;↓&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+&nbsp;&nbsp;[0]&nbsp;&nbsp;&nbsp;(b)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;\<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;b=0&nbsp; b=1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[0]&nbsp;&nbsp;[1]<br><br>
+<span class="keyword">읽는 법:</span> 위에서 내려가며 분기<br>
+&nbsp;&nbsp;실선(=1) / 점선(=0) 따라 이동<br>
+&nbsp;&nbsp;[1] 도착 = TRUE, [0] 도착 = FALSE
+        </div>
+      </div>
+      <div class="side-box">
+        <h4 style="color:#a78bfa;">BDD의 핵심: 무손실 압축</h4>
+        <div class="math-block" style="font-size:0.88em;">
+<span class="comment">// 집합을 나열하지 않고 "규칙"으로 표현</span><br><br>
+<span class="keyword">나열:</span> {00, 10} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← 2개 항목<br>
+<span class="keyword">규칙:</span> b₀ = 0인 상태 &nbsp;← 1개 조건<br><br>
+<span class="comment">// 정보 유실 없음 (무손실)</span><br>
+<span class="comment">// "안 봐도 되는 변수를 생략" → 압축</span><br><br>
+<span class="keyword">변수 64개, 관련 변수 10개일 때:</span><br>
+&nbsp;&nbsp;진리표: 2⁶⁴줄 (불가능)<br>
+&nbsp;&nbsp;BDD: ~2¹⁰ 노드 (가능!)<br><br>
+<span class="keyword">잘 되는 경우:</span><br>
+&nbsp;&nbsp;제어 로직 (소수 변수만 관여)<br>
+&nbsp;&nbsp;같은 입력 → FF 종속 관계 생김<br><br>
+<span class="keyword" style="color:#f87171;">안 되는 경우:</span><br>
+&nbsp;&nbsp;곱셈기 (모든 bit가 모든 bit에 영향)<br>
+&nbsp;&nbsp;→ 생략할 변수 없음 → BDD 폭발
+        </div>
+      </div>
+    </div>
+
+    <!-- 4c: Ref BDD + Impl BDD + Miter -->
+    <div class="math-block">
+<span class="keyword">Step 4b: 두 BDD를 Miter(XOR)로 비교</span><br><br>
+<span class="comment">// 1. Ref RTL → Ref BDD 생성</span><br>
+<span class="func">BDD_R</span> = compile(<span class="func">λ<sub>R</sub></span>(s, x)) &nbsp;&nbsp;<span class="comment">// Reference 출력 함수</span><br><br>
+<span class="comment">// 2. Impl RTL → Impl BDD 생성</span><br>
+<span class="func">BDD_I</span> = compile(<span class="func">λ<sub>I</sub></span>(s, x)) &nbsp;&nbsp;<span class="comment">// Implementation 출력 함수</span><br><br>
+<span class="comment">// 3. Miter = 두 BDD를 XOR</span><br>
+<span class="func">BDD_miter</span> = <span class="func">BDD_R</span> <span class="op">⊕</span> <span class="func">BDD_I</span> &nbsp;&nbsp;<span class="comment">// XOR 연산</span><br><br>
+<span class="keyword">판정:</span><br>
+&nbsp;&nbsp;<span class="func">BDD_miter</span> = <span class="keyword">상수 0</span> &nbsp;→ <span class="keyword" style="color:#34d399;">EQUIVALENT</span> &nbsp;<span class="comment">// 모든 입력에서 출력 동일</span><br>
+&nbsp;&nbsp;<span class="func">BDD_miter</span> <span class="op">≠</span> <span class="keyword">상수 0</span> &nbsp;→ <span class="keyword" style="color:#f87171;">NON-EQUIVALENT</span> &nbsp;<span class="comment">// [1]로 가는 경로 = 반례</span>
+    </div>
+
+    <!-- 4d: Reachability (Sequential) -->
+    <div class="callout" style="margin-top:1rem;">
+      <strong style="color:#f59e0b;">Sequential 회로에서는 Reachability가 추가됩니다</strong><br>
+      위의 조합 비교(XOR)는 CEC/LEC 수준입니다. Sequential 회로에서는 <strong>"도달 가능한 상태에서만"</strong> 비교해야 합니다.
+    </div>
 
     <div class="math-block">
-<span class="keyword">Fixed-Point Iteration</span> (BDD 기반):<br><br>
-<span class="func">Reach</span>₀(s) = <span class="func">Init</span>(s) &nbsp;&nbsp;<span class="comment">// 초기 상태 집합</span><br>
-<span class="func">Reach</span>ₖ₊₁(s) = <span class="func">Reach</span>ₖ(s) <span class="op">∪</span> <span class="func">Image</span>(<span class="func">Reach</span>ₖ, δ)<br><br>
-<span class="comment">// Image 연산 (후속 상태 계산):</span><br>
-<span class="func">Image</span>(R, δ) = { s' | <span class="op">∃</span>s <span class="op">∈</span> R, <span class="op">∃</span>x <span class="op">∈</span> I: δ(s, x) = s' }<br><br>
-<span class="keyword">종료 조건</span>: <span class="func">Reach</span>ₖ₊₁ = <span class="func">Reach</span>ₖ &nbsp;<span class="comment">// 고정점 (fixed point)</span><br><br>
-<span class="keyword">판정</span>:<br>
-&nbsp;&nbsp;<span class="func">Reach</span>* <span class="op">∩</span> <span class="highlight">Bad</span> = <span class="op">∅</span> &nbsp;→ <span class="keyword" style="color:#34d399;">EQUIVALENT (PASS)</span><br>
-&nbsp;&nbsp;<span class="func">Reach</span>* <span class="op">∩</span> <span class="highlight">Bad</span> <span class="op">≠</span> <span class="op">∅</span> &nbsp;→ <span class="keyword" style="color:#f87171;">NOT EQUIVALENT (FAIL)</span>
+<span class="keyword">Step 4c: Reachability (Sequential 전용)</span><br><br>
+<span class="comment">// 리셋에서 시작, 한 클럭씩 도달 가능 상태를 확장</span><br><br>
+<span class="func">Reach</span>₀ = {초기 상태}<br>
+<span class="func">Reach</span>ₖ₊₁ = <span class="func">Reach</span>ₖ <span class="op">∪</span> <span class="func">Image</span>(<span class="func">Reach</span>ₖ, δ)<br><br>
+<span class="func">Image</span>(R, δ) = { s' | <span class="op">∃</span>s <span class="op">∈</span> R, <span class="op">∃</span>x <span class="op">∈</span> I : δ(s,x) = s' }<br>
+<span class="comment">&nbsp;&nbsp;// "현재 상태 집합에서 한 클럭 후 갈 수 있는 곳"</span><br>
+<span class="comment">&nbsp;&nbsp;// 비유: 물이 한 칸씩 퍼지는 것</span><br><br>
+<span class="keyword">종료:</span> <span class="func">Reach</span>ₖ₊₁ = <span class="func">Reach</span>ₖ → 고정점 (더 퍼질 곳 없음)<br><br>
+<span class="keyword">최종 판정:</span><br>
+&nbsp;&nbsp;<span class="func">Reach</span>* <span class="op">∩</span> {<span class="func">miter</span>=1인 상태} = <span class="op">∅</span> → <span class="keyword" style="color:#34d399;">EQUIVALENT</span><br>
+&nbsp;&nbsp;<span class="func">Reach</span>* <span class="op">∩</span> {<span class="func">miter</span>=1인 상태} <span class="op">≠</span> <span class="op">∅</span> → <span class="keyword" style="color:#f87171;">NON-EQUIVALENT</span>
     </div>
 
     <div class="diagram-container">
@@ -469,9 +545,36 @@
       <button class="btn active" onclick="animateReach()">Reachability 애니메이션 재생</button>
     </div>
 
-    <div class="callout">
-      <strong>BDD (Binary Decision Diagram):</strong> 상태 집합을 Boolean function으로 압축 표현합니다.
-      2¹⁰⁰개 상태도 하나의 BDD 노드 그래프로 표현 가능하여, 개별 열거 없이 집합 연산을 수행합니다.
+    <!-- 4e: BDD의 한계 -->
+    <div class="side-by-side" style="margin-top:1rem;">
+      <div class="side-box" style="border-color:rgba(52,211,153,0.3);">
+        <h4 style="color:#34d399;">BDD가 잘 작동하는 경우</h4>
+        <div class="math-block" style="font-size:0.85em;">
+<span class="comment">// 변수들 사이에 규칙/패턴이 있을 때</span><br>
+• 제어 로직 (FSM, arbiter, 프로토콜)<br>
+• 같은 입력을 받아 종속성이 생기는 FF<br>
+• 소수의 변수만 결과에 영향<br><br>
+<span class="keyword">BDD가 자동으로 압축:</span><br>
+&nbsp;&nbsp;영향 없는 변수 → 노드에서 <span class="keyword">자동 생략</span><br>
+&nbsp;&nbsp;같은 하위 트리 → <span class="keyword">자동 공유</span><br>
+<span class="comment">// "압축하라" 명령 불필요. 구조상 자동.</span>
+        </div>
+      </div>
+      <div class="side-box" style="border-color:rgba(248,113,113,0.3);">
+        <h4 style="color:#f87171;">BDD의 한계 → 5단계(SAT)로</h4>
+        <div class="math-block" style="font-size:0.85em;">
+<span class="comment">// 변수들이 복잡하게 얽혀있을 때</span><br>
+• 곱셈기, 나눗셈기, 암호 연산<br>
+• FF 수백 개 이상의 데이터패스<br>
+• BDD 자체가 지수적으로 커짐<br><br>
+<span class="keyword" style="color:#f87171;">BDD의 근본 한계:</span><br>
+&nbsp;&nbsp;"도달 가능한 모든 상태"를 표현해야 함<br>
+&nbsp;&nbsp;→ 상태 집합 복잡하면 메모리 폭발<br><br>
+<span class="keyword">대안: SAT (5단계)</span><br>
+&nbsp;&nbsp;전체 상태를 구하지 않고<br>
+&nbsp;&nbsp;"k 걸음 안에 Bad 도달?" 만 질문
+        </div>
+      </div>
     </div>
   </div>
 
