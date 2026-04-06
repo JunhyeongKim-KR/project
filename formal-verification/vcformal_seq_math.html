@@ -593,6 +593,12 @@
     <h2>SAT 기반 검증 & k-Induction</h2>
     <p>BDD의 메모리 한계를 극복하기 위해, 현대 SEQ 도구는 <strong>SAT solver</strong>와 <strong>수학적 귀납법</strong>을 결합합니다.</p>
 
+    <!-- Step 5: 발상 전환 설명 -->
+    <div class="callout" style="margin-bottom:1.2rem;">
+      <strong>발상의 전환:</strong> BDD(4단계)는 "도달 가능한 <em>모든</em> 상태를 구하자"는 접근. SAT는 완전히 다릅니다 — <strong>"Bad에 도달하는 경로가 있는가?"</strong>만 질문합니다.<br>
+      비유: 지도를 전부 그리는 대신, 내비게이션에 "목적지까지 길이 있나요?"라고 물어보는 것.
+    </div>
+
     <div class="side-by-side">
       <div class="side-box">
         <h4 style="color:#f59e0b;">BMC (Bounded Model Checking)</h4>
@@ -620,14 +626,169 @@
 <span class="op">∧</span> <span class="highlight">Bad</span>(sₖ)<br><br>
 <span class="keyword" style="color:#34d399;">둘 다 UNSAT → 완전 증명!</span>
         </div>
-        <div style="margin-top:0.8rem;padding:0.8rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;font-size:0.82rem;">
-          <strong style="color:#10b981;">Auxiliary Invariant가 필요한 이유:</strong><br>
-          Inductive step은 <em>임의 상태</em>에서 시작 — 실제로 <strong>도달 불가능한 상태</strong>도 포함됨.<br>
-          도달 불가능한 상태에서 Bad가 성립하면 false counterexample 발생.<br><br>
-          해결: <span class="func">Inv</span>(s)를 추가하여 unreachable 상태 제외:<br>
-          <code style="color:#e0e6f0;">¬Bad(s₀) ∧ Inv(s₀) ∧ T(s₀,i₀,s₁) ∧ ... → ¬Bad(sₖ) ∧ Inv(sₖ)</code><br><br>
-          k를 늘리면 "k개 연속 ¬Bad" 조건이 unreachable 상태를 자연 제외.<br>
-          그래도 실패 시 → <strong>interpolation</strong>으로 invariant 자동 생성.
+      </div>
+    </div>
+
+    <!-- Step 5: Unrolling 설명 -->
+    <div style="margin:1.2rem 0;">
+      <h4 style="color:#f59e0b;margin-bottom:0.8rem;">Unrolling이란?</h4>
+      <p style="color:#b0bdd0;margin-bottom:0.8rem;">회로를 k번 복사해서 이어붙입니다. 각 복사본은 같은 로직이지만 <strong>별도의 상태/입력 변수</strong>를 가집니다. 시간을 공간으로 펼친 것입니다.</p>
+      <div class="math-block" style="font-size:0.9em;">
+<span class="comment">// 시간 전개 (Unrolling) — 시간을 공간으로 변환</span><br><br>
+cycle 0 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cycle 1 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cycle k<br>
+┌──────┐ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;┌──────┐ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;┌──────┐<br>
+│ 회로 &nbsp;│ ──→ │ 회로 &nbsp;│ ──→ │ 회로 &nbsp;│<br>
+└──────┘ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└──────┘ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└──────┘<br>
+&nbsp;&nbsp;s₀ &nbsp;&nbsp;&nbsp;i₀ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;s₁ &nbsp;&nbsp;&nbsp;i₁ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sₖ<br><br>
+<span class="comment">// 각 cycle의 s, i는 별도 변수 → 하나의 거대한 Boolean 수식</span><br>
+<span class="comment">// SAT solver가 이 수식에서 Bad=true인 경로를 탐색</span>
+      </div>
+    </div>
+
+    <!-- Step 5: SAT solver vs BDD 설명 -->
+    <div class="side-by-side" style="margin:1.2rem 0;">
+      <div class="side-box" style="border-color:rgba(245,158,11,0.3);">
+        <h4 style="color:#f59e0b;">SAT Solver란?</h4>
+        <p style="color:#b0bdd0;font-size:0.88em;">
+          BDD와 <strong>완전히 다른 도구</strong>입니다.<br><br>
+          <strong style="color:#60a5fa;">BDD</strong>: 그래프 자료구조. 함수를 "표현"하고 연산함.<br>
+          <strong style="color:#f59e0b;">SAT</strong>: 수식을 직접 풀어봄. 백트래킹 탐색.<br><br>
+          수식을 <span class="keyword">CNF</span>(Conjunctive Normal Form) 형태로 변환:<br>
+          <code style="color:#c9d1d9;font-size:0.85em;">(a ∨ b) ∧ (¬a ∨ c) ∧ (¬b ∨ ¬c)</code><br><br>
+          변수에 값을 하나씩 대입하며 모순이 없는지 확인. 모순 발견 시 백트래킹.
+        </p>
+      </div>
+      <div class="side-box" style="border-color:rgba(96,165,250,0.3);">
+        <h4 style="color:#60a5fa;">BDD vs SAT 비유</h4>
+        <p style="color:#b0bdd0;font-size:0.88em;">
+          <strong style="color:#60a5fa;">BDD</strong> = 모든 경우의 수를 지도로 그림<br>
+          → 지도만 있으면 모든 질문에 답 가능<br>
+          → 하지만 지도 자체가 엄청 커질 수 있음<br><br>
+          <strong style="color:#f59e0b;">SAT</strong> = 내비게이션에 경로 질문<br>
+          → "이 목적지(Bad)에 도달 가능?" 질문 하나만<br>
+          → 지도를 안 그려도 됨 → 메모리 절약<br>
+          → 대신 매번 새로 탐색해야 함
+        </p>
+      </div>
+    </div>
+
+    <!-- Step 5: Bounded 한계 -->
+    <div class="callout warn" style="margin:1.2rem 0;">
+      <strong>BMC의 근본 한계 — "Bounded":</strong><br>
+      k=100에서 UNSAT → "100 사이클까지는 안전". 하지만 k=101에서 반례가 있을 수도 있습니다.<br>
+      k를 무한히 늘릴 수는 없음 (수식 크기가 k에 비례하여 커지므로). → 그래서 <strong>6단계(k-Induction)</strong>이 필요합니다.
+    </div>
+
+    <!-- Step 6: k-Induction 상세 설명 -->
+    <div style="margin:1.5rem 0;padding:1.2rem;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:12px;">
+      <h4 style="color:#10b981;margin-bottom:1rem;">k-Induction 깊이 이해하기</h4>
+
+      <!-- 수학 귀납법 비유 -->
+      <div class="callout success" style="margin-bottom:1rem;">
+        <strong>중학교 수학 귀납법과 같은 원리:</strong><br>
+        P(0)이 참 + P(n)이면 P(n+1)이 참 → 모든 n에서 P(n) 참.<br><br>
+        k-Induction도 동일합니다:<br>
+        <strong>Base</strong>: "리셋에서 시작하여 k 사이클 동안 Bad 없음" (= P(0)...P(k) 참)<br>
+        <strong>Inductive Step</strong>: "k개 연속 안전 → 다음도 안전" (= P(n)→P(n+1))
+      </div>
+
+      <!-- 핵심 차이: Init이 없다 -->
+      <div style="margin-bottom:1rem;padding:0.8rem;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:8px;font-size:0.88rem;">
+        <strong style="color:#f87171;">핵심 차이: Inductive Step에는 Init이 없다!</strong><br><br>
+        <strong>Base Case</strong>: <span class="func">Init</span>(s₀)에서 시작 → 리셋 상태에서 출발<br>
+        <strong>Inductive Step</strong>: <span style="color:#f87171;">임의의 상태</span>에서 시작 → Init 조건 없음!<br><br>
+        이것이 <strong>실패의 원인</strong>입니다. 도달 불가능한 상태도 시작점이 될 수 있기 때문에,
+        실제로는 절대 일어나지 않는 시나리오에서 Bad에 도달 → false counterexample.
+      </div>
+
+      <!-- 왜 k > 1인가 -->
+      <div style="margin-bottom:1rem;padding:0.8rem;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:8px;font-size:0.88rem;">
+        <strong style="color:#a78bfa;">왜 k를 1보다 크게?</strong><br><br>
+        1-Induction: "¬Bad(s₀) ∧ T → ¬Bad(s₁)?" — 도달 불가능한 상태에서 시작하면 쉽게 실패.<br><br>
+        k를 늘리면 <strong>"k개 연속 안전"</strong>이라는 조건이 가짜 상태를 걸러냅니다.<br>
+        예: k=3이면 "3사이클 연속 ¬Bad인 상태에서 시작" → 도달 불가능한 이상한 상태 대부분 제외.
+      </div>
+
+      <!-- k를 몇으로? -->
+      <div style="margin-bottom:1rem;padding:0.8rem;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.2);border-radius:8px;font-size:0.88rem;">
+        <strong style="color:#38bdf8;">k를 몇으로 설정하는가?</strong><br><br>
+        Designer가 정하지 않습니다. <strong>도구가 k=1부터 자동으로 올립니다.</strong><br>
+        k=1 시도 → Inductive step 실패 → k=2 시도 → ... 반복.<br><br>
+        대부분의 실제 설계에서 <strong>k=1~10</strong>이면 증명됩니다.<br>
+        그래도 안 되면 → 7단계(Auxiliary Invariant)가 필요합니다.
+      </div>
+
+      <!-- 일반화 문제 -->
+      <div class="callout" style="margin-bottom:0;">
+        <strong>핵심 통찰 — "일반화"의 의미:</strong><br>
+        수학 귀납법은 시간(n)을 일반화합니다. k-Induction도 시간을 일반화하지만, 방법이 다릅니다.<br><br>
+        "모든 가능한 시작 상태"를 SAT로 <strong>전수 탐색</strong>합니다.<br>
+        UNSAT = "어떤 시작 상태에서 시작하든, k개 연속 ¬Bad이면 다음도 ¬Bad" → 모든 시간에 대해 성립.
+      </div>
+    </div>
+
+    <!-- Step 7: Auxiliary Invariant 상세 -->
+    <div style="margin:1.5rem 0;padding:1.2rem;background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.2);border-radius:12px;">
+      <h4 style="color:#f87171;margin-bottom:1rem;">Auxiliary Invariant (보조 불변 조건)</h4>
+      <p style="color:#b0bdd0;margin-bottom:1rem;">k-Induction이 아무리 k를 올려도 실패할 때, Invariant를 추가하여 도달 불가능한 상태를 제외합니다.</p>
+
+      <!-- 구체적 예시 -->
+      <div class="math-block" style="font-size:0.88em;">
+<span class="keyword">예시: 2개 counter의 SEC</span><br><br>
+<span class="comment">// Ref: 2-bit counter (00→01→10→11→00...)</span><br>
+<span class="comment">// Impl: 같은 동작, 다른 인코딩</span><br><br>
+Product Machine 상태: (<span class="func">ref_cnt</span>, <span class="func">impl_cnt</span>)<br><br>
+<span class="comment">// 도달 가능한 상태: (00,00), (01,01), (10,10), (11,11)</span><br>
+<span class="comment">// 도달 불가능한 상태: (01,10), (10,01), ... ← 실제로 절대 안 일어남</span><br><br>
+<span class="keyword">문제:</span> Inductive step에서 (01,10)에서 시작하면 Bad 도달 가능<br>
+&nbsp;&nbsp;→ false counterexample<br><br>
+<span class="keyword" style="color:#34d399;">해결:</span> <span class="func">Inv</span> = (<span class="func">ref_cnt</span> == <span class="func">impl_cnt</span>) 추가<br>
+&nbsp;&nbsp;→ (01,10) 같은 상태 제외 → 증명 성공!
+      </div>
+
+      <!-- 누가 만드는가 -->
+      <div style="margin:1rem 0;">
+        <strong style="color:#a78bfa;">Invariant를 만드는 3가지 방법:</strong>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.8rem;margin-top:0.8rem;">
+          <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:8px;padding:0.8rem;">
+            <div style="color:#a78bfa;font-weight:700;font-size:0.85rem;">1. k를 늘림 (간접)</div>
+            <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.3rem;">k개 연속 ¬Bad 조건이<br>자연스럽게 가짜 상태 제외</div>
+          </div>
+          <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:8px;padding:0.8rem;">
+            <div style="color:#f59e0b;font-weight:700;font-size:0.85rem;">2. Designer가 직접 (수동)</div>
+            <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.3rem;">설계를 이해하는 사람이<br>Inv 조건을 SVA로 작성</div>
+          </div>
+          <div style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.2);border-radius:8px;padding:0.8rem;">
+            <div style="color:#38bdf8;font-weight:700;font-size:0.85rem;">3. Craig Interpolation (자동)</div>
+            <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.3rem;">BMC UNSAT 수식에서<br>Inv 후보를 자동 추출</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Craig Interpolation 간단 설명 -->
+      <div class="math-block" style="font-size:0.88em;">
+<span class="keyword">Craig Interpolation 원리:</span><br><br>
+<span class="comment">// BMC(k)가 UNSAT일 때:</span><br>
+<span class="comment">//   수식 = A(초기~중간) ∧ B(중간~끝)</span><br>
+<span class="comment">//   A ∧ B = UNSAT</span><br><br>
+<span class="comment">// Craig의 정리: A ∧ B = UNSAT이면,</span><br>
+<span class="comment">//   공유 변수만으로 표현되는 Interpolant I 존재</span><br>
+<span class="comment">//   A → I, I ∧ B = UNSAT</span><br><br>
+<span class="func">Interpolant</span> = 과거(A)가 알려주는 "미래(B)에 대한 요약"<br>
+&nbsp;&nbsp;→ 이것이 <span class="func">Inv</span> 후보!
+      </div>
+
+      <!-- Inv 검증 3조건 -->
+      <div style="margin-top:1rem;padding:0.8rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;">
+        <strong style="color:#10b981;">Invariant 유효성 검증 — 3가지 조건 (모두 UNSAT이면 유효):</strong>
+        <div class="math-block" style="font-size:0.88em;margin-top:0.5rem;">
+<span class="comment">// 1. 초기 상태에서 Inv 성립</span><br>
+<span class="func">Init</span>(s) <span class="op">∧</span> ¬<span class="func">Inv</span>(s) &nbsp;&nbsp;→ <span class="keyword">UNSAT</span> &nbsp;<span class="comment">// Init → Inv</span><br><br>
+<span class="comment">// 2. Inv가 전이 후에도 유지 (귀납적)</span><br>
+<span class="func">Inv</span>(s) <span class="op">∧</span> <span class="func">T</span>(s,i,s') <span class="op">∧</span> ¬<span class="func">Inv</span>(s') &nbsp;&nbsp;→ <span class="keyword">UNSAT</span> &nbsp;<span class="comment">// Inv ∧ T → Inv'</span><br><br>
+<span class="comment">// 3. Inv가 Bad를 제외</span><br>
+<span class="func">Inv</span>(s) <span class="op">∧</span> <span class="highlight">Bad</span>(s) &nbsp;&nbsp;→ <span class="keyword">UNSAT</span> &nbsp;<span class="comment">// Inv → ¬Bad</span><br><br>
+<span class="keyword" style="color:#34d399;">셋 다 UNSAT → Inv는 유효한 안전 불변 조건 → 속성 증명 완료!</span>
         </div>
       </div>
     </div>
@@ -691,6 +852,21 @@ o<sub>I_delayed</sub> = <span class="func">delay</span>(o<sub>I</sub>, N)<br><br
     <div style="margin-top:1rem;padding:0.8rem;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:8px;font-size:0.85rem;">
       <strong style="color:#f59e0b;">적용 대상:</strong>
       Retiming (FF 위치 이동), Pipeline stage 추가/제거, Clock gating (latency 변화 없으나 동작 조건 변경)
+    </div>
+
+    <!-- Latency Offset 추가 설명 -->
+    <div style="margin-top:1rem;padding:0.8rem;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:8px;font-size:0.85rem;">
+      <strong style="color:#f87171;">Offset을 잘못 설정하면?</strong><br><br>
+      Offset이 <strong>1만 틀려도</strong> SEC는 바로 실패(NON-EQUIVALENT)합니다.<br>
+      이것은 설계 버그가 아니라 <strong>TCL 설정 오류</strong>입니다.<br><br>
+      SEC 실패 시 <strong>가장 먼저 확인할 것</strong>: latency offset이 맞는가?<br>
+      실제 파이프라인 단계를 수동으로 세어보고, TCL의 <code style="color:#e0e6f0;">set_seq_equiv_latency</code> 값과 대조하세요.
+    </div>
+
+    <div style="margin-top:1rem;padding:0.8rem;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.2);border-radius:8px;font-size:0.85rem;">
+      <strong style="color:#34d399;">Clock Gating은 offset = 0:</strong><br>
+      Clock gating은 FF에 enable 조건을 추가하는 것이지, 파이프라인 단계를 바꾸는 것이 아닙니다.<br>
+      FF 구조(게이트 레벨)는 변하지만 <strong>latency는 변하지 않습니다</strong>. → offset = 0으로 설정.
     </div>
   </div>
 
